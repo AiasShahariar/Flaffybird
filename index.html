@@ -1,0 +1,1648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Flappy Bird</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    position: fixed;           /* stops iOS Safari rubber-band scrolling */
+    overflow: hidden;
+    background: #70c5ce;
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: none;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  #game {
+    display: block;
+    width: 100vw;
+    height: 100dvh;
+    touch-action: none;
+  }
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    text-align: center;
+    color: #fff;
+    text-shadow: 0 2px 0 rgba(0,0,0,.35);
+    touch-action: none;
+  }
+  .hidden { display: none !important; }
+  .title {
+    font-size: clamp(36px, 10vw, 64px);
+    font-weight: 800;
+    letter-spacing: 1px;
+    -webkit-text-stroke: 2px #543847;
+  }
+  .hint {
+    font-size: clamp(18px, 5vw, 26px);
+    font-weight: 600;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: .6; transform: scale(.96); }
+  }
+  .panel {
+    background: #ded895;
+    border: 3px solid #543847;
+    border-radius: 12px;
+    padding: 20px 34px;
+    color: #543847;
+    text-shadow: none;
+    box-shadow: 0 4px 0 rgba(0,0,0,.25);
+  }
+  .panel h2 { font-size: 28px; margin-bottom: 10px; }
+  .panel .scores { font-size: 20px; font-weight: 700; line-height: 1.5; }
+  .panel .new-best { color: #d9541e; font-size: 15px; font-weight: 800; margin-top: 4px; }
+  .big-btn {
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    background: #e86101;
+    border: 3px solid #543847;
+    border-radius: 12px;
+    padding: 14px 42px;
+    box-shadow: 0 5px 0 #a34500;
+    cursor: pointer;
+    touch-action: none;
+  }
+  .big-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #a34500; }
+  .mid-btn {
+    font-size: 17px;
+    font-weight: 800;
+    color: #543847;
+    background: #ded895;
+    border: 3px solid #543847;
+    border-radius: 12px;
+    padding: 10px 30px;
+    box-shadow: 0 4px 0 rgba(0,0,0,.25);
+    cursor: pointer;
+    touch-action: none;
+  }
+  .mid-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.25); }
+  .start-wallet {
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffd34e;
+    -webkit-text-stroke: 0.5px #543847;
+  }
+
+  #choiceScreen { background: rgba(46, 32, 54, .5); }
+  .choice-title {
+    font-size: clamp(24px, 7vw, 40px);
+    font-weight: 800;
+    -webkit-text-stroke: 1.5px #543847;
+  }
+  #choiceCards { display: flex; flex-direction: column; gap: 12px; }
+  .upg-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: min(86vw, 360px);
+    text-align: left;
+    background: #ded895;
+    border: 3px solid #543847;
+    border-radius: 14px;
+    padding: 12px 16px;
+    color: #543847;
+    font-family: inherit;
+    box-shadow: 0 4px 0 rgba(0,0,0,.25);
+    cursor: pointer;
+    touch-action: none;
+  }
+  .upg-card:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.25); }
+  .upg-icon { font-size: 32px; line-height: 1; }
+  .upg-name { font-weight: 800; font-size: 17px; }
+  .upg-desc { font-size: 13.5px; line-height: 1.3; display: block; margin-top: 2px; }
+
+  #ownedBar {
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top));
+    left: 12px;
+    font-size: 22px;
+    letter-spacing: 2px;
+    pointer-events: none;
+    text-shadow: 0 2px 2px rgba(0,0,0,.3);
+  }
+
+  #parryBtn {
+    position: fixed;
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #fff;
+    background: rgba(232, 97, 1, 0.88);
+    border: 3px solid #543847;
+    box-shadow: 0 4px 0 rgba(0,0,0,.3);
+    cursor: pointer;
+    touch-action: none;
+    z-index: 60;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #parryBtn:active { transform: translate(-50%, -50%) scale(.92); }
+
+  #settingsScreen {
+    background: rgba(46, 32, 54, .35);
+    justify-content: flex-start;
+    padding-top: 12vh;
+    z-index: 50;
+  }
+
+  #shopScreen { background: rgba(46, 32, 54, .5); z-index: 50; }
+  .shop-wallet { font-size: 16px; font-weight: 800; color: #a3742a; margin-bottom: 10px; }
+  #shopMsg { color: #d9541e; font-weight: 800; font-size: 14px; min-height: 18px; margin-bottom: 6px; }
+  .shop-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: left;
+    margin: 0 0 10px;
+    width: min(78vw, 320px);
+  }
+  .shop-info { flex: 1; }
+  .shop-name { font-weight: 800; font-size: 16px; }
+  .shop-desc { font-size: 13px; line-height: 1.25; }
+  .shop-buy {
+    font-size: 14px;
+    font-weight: 800;
+    color: #fff;
+    background: #e86101;
+    border: 2px solid #543847;
+    border-radius: 10px;
+    padding: 8px 12px;
+    box-shadow: 0 3px 0 #a34500;
+    cursor: pointer;
+    touch-action: none;
+    white-space: nowrap;
+  }
+  .shop-buy.owned { background: #9bd85a; color: #37540f; box-shadow: 0 3px 0 #5e8a2e; }
+  .set-hint { font-size: 15px; margin: 8px 0 14px; max-width: 260px; }
+  .set-row { display: flex; gap: 10px; justify-content: center; }
+  #settingsScreen .set-row button {
+    font-size: 16px;
+    font-weight: 800;
+    color: #fff;
+    background: #e86101;
+    border: 2px solid #543847;
+    border-radius: 10px;
+    padding: 10px 16px;
+    box-shadow: 0 3px 0 #a34500;
+    cursor: pointer;
+    touch-action: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="ownedBar"></div>
+<button id="parryBtn" type="button" class="hidden">PARRY</button>
+
+<div id="startScreen" class="overlay">
+  <div class="title">Flappy Bird</div>
+  <div class="start-wallet">Wallet: $<span id="walletStart">0</span></div>
+  <button id="startBtn" type="button" class="big-btn">Start</button>
+  <div class="set-row">
+    <button id="shopBtn" type="button" class="mid-btn">Shop</button>
+    <button id="startSettingsBtn" type="button" class="mid-btn">Settings</button>
+  </div>
+</div>
+
+<div id="shopScreen" class="overlay hidden">
+  <div class="panel">
+    <h2>Shop</h2>
+    <div class="shop-wallet">Wallet: $<span id="shopWallet">0</span></div>
+    <div id="shopMsg"></div>
+    <div id="shopItems"></div>
+    <div class="set-row" style="margin-top: 8px;">
+      <button id="shopDoneBtn" type="button" class="mid-btn">Done</button>
+    </div>
+  </div>
+</div>
+
+<div id="choiceScreen" class="overlay hidden">
+  <div class="choice-title">Choose an upgrade</div>
+  <div id="choiceCards"></div>
+</div>
+
+<div id="settingsScreen" class="overlay hidden">
+  <div class="panel">
+    <h2>Settings</h2>
+    <div class="set-hint">Drag the PARRY button anywhere you like, then press Done.</div>
+    <div class="set-row">
+      <button id="resetPosBtn" type="button">Reset position</button>
+      <button id="settingsDoneBtn" type="button">Done</button>
+    </div>
+    <div class="set-row" style="margin-top: 12px;">
+      <button id="devModeBtn" type="button">Dev Mode</button>
+    </div>
+    <div id="devPanel" class="hidden">
+      <div class="set-hint">Start at score 45 with every upgrade already collected.</div>
+      <div class="set-row">
+        <button id="dev45Btn" type="button">45</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="gameOverScreen" class="overlay hidden">
+  <div class="panel">
+    <h2>Game Over</h2>
+    <div class="scores">
+      Score: <span id="finalScore">0</span><br>
+      Best: <span id="bestScore">0</span><br>
+      Gold: +$<span id="goldEarned">0</span> · Total: $<span id="goldTotalEl">0</span>
+    </div>
+    <div id="newBest" class="new-best hidden">NEW BEST!</div>
+  </div>
+  <button id="restartBtn" type="button" class="big-btn">Restart</button>
+  <div class="set-row">
+    <button id="menuBtn" type="button" class="mid-btn">Main Menu</button>
+    <button id="shopBtn2" type="button" class="mid-btn">Shop</button>
+    <button id="goSettingsBtn" type="button" class="mid-btn">Settings</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------- canvas & resize ----------
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0;   // CSS-pixel size of the canvas (world coordinates)
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const newW = window.innerWidth;
+    const newH = window.innerHeight;
+    // keep pipes proportionally placed when the viewport changes (rotation)
+    if (W > 0 && newW !== W) {
+      const fx = newW / W;
+      for (const p of pipes) p.x *= fx;
+    }
+    W = newW; H = newH;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', () => setTimeout(resize, 100));
+
+  // block pinch-zoom / double-tap-zoom / scroll on iOS Safari
+  document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+  document.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+  document.addEventListener('gesturestart', e => e.preventDefault());
+
+  // ---------- sound (Web Audio, no files) ----------
+  let audioCtx = null;
+  function ensureAudio() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!audioCtx) audioCtx = new AC();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+  function tone(freq, endFreq, dur, type, vol, delay) {
+    if (!audioCtx || audioCtx.state !== 'running') return;
+    const t = audioCtx.currentTime + (delay || 0);
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(endFreq, 1), t + dur);
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.05);
+  }
+  const sfx = {
+    flap()        { tone(420, 830, 0.09, 'square', 0.10, 0); },
+    score()       { tone(880, 880, 0.08, 'sine', 0.18, 0); tone(1318, 1318, 0.12, 'sine', 0.18, 0.08); },
+    hit()         { tone(320, 55, 0.30, 'sawtooth', 0.22, 0); tone(160, 40, 0.35, 'square', 0.15, 0.05); },
+    powerup()     { tone(523, 523, 0.09, 'sine', 0.18, 0); tone(659, 659, 0.09, 'sine', 0.18, 0.07); tone(784, 784, 0.16, 'sine', 0.18, 0.14); },
+    shieldBreak() { tone(1100, 250, 0.22, 'triangle', 0.22, 0); },
+    smash()       { tone(180, 60, 0.20, 'sawtooth', 0.25, 0); tone(900, 200, 0.12, 'square', 0.15, 0); },
+    rewind()      { tone(250, 1500, 0.35, 'sine', 0.20, 0); },
+    perch()       { tone(600, 500, 0.06, 'triangle', 0.10, 0); },
+    recharge()    { tone(700, 1050, 0.09, 'sine', 0.12, 0); },
+    tick()        { tone(1000, 1400, 0.06, 'sine', 0.10, 0); },
+    swing()       { tone(500, 180, 0.10, 'triangle', 0.12, 0); },
+    parry()       { tone(1800, 900, 0.08, 'square', 0.20, 0); tone(2600, 2600, 0.05, 'sine', 0.15, 0.02); },
+    shoot()       { tone(300, 140, 0.07, 'square', 0.12, 0); },
+    hurt()        { tone(220, 90, 0.18, 'sawtooth', 0.25, 0); },
+    snakeDie()    { tone(400, 60, 0.25, 'square', 0.20, 0); tone(150, 40, 0.20, 'sawtooth', 0.15, 0.05); },
+    coin()        { tone(988, 988, 0.07, 'sine', 0.15, 0); tone(1319, 1319, 0.10, 'sine', 0.15, 0.06); },
+  };
+
+  // ---------- upgrades (roguelike pool) ----------
+  const RECHARGE_PIPES = 10;
+  const SHIELD_STREAK_NEEDED = 3;   // consecutive dead-centre passes to restore the shield
+  const CENTER_TOLERANCE = 0.14;    // |bird.y - gap centre| must be within this fraction of the gap
+  const UPGRADES = [
+    { id: 'shield',  icon: '\u{1F6E1}️', name: 'Guardian Feather', desc: 'A spirit shield absorbs one crash. Restore it by threading 3 gaps in a row dead-centre.' },
+    { id: 'peck',    icon: '⛏️',    name: 'Woodpecker Beak',  desc: 'Smash straight through the first pipe you hit, then recharges after 10 pipes.' },
+    { id: 'glide',   icon: '\u{1FA82}',       name: 'Glider Wings',     desc: 'Hold your finger on the screen to glide gently instead of falling.' },
+    { id: 'focus',   icon: '\u{1F3AF}',       name: 'Falcon Focus',     desc: 'Time slows down while you thread through a pipe.' },
+    { id: 'rewind',  icon: '⏪',          name: 'Rewind Totem',     desc: 'Once per run, a fatal crash rewinds time two seconds instead.' },
+    { id: 'humming', icon: '\u{1FAB6}',       name: 'Hummingbird Form', desc: 'Shrink into a tiny, nimble bird with quick little flaps.' },
+    { id: 'moon',    icon: '\u{1F319}',       name: 'Moon Feathers',    desc: 'Moon gravity — you fall like a feather and flap softly.' },
+    { id: 'perch',   icon: '\u{1F43E}',       name: 'Perch Claws',      desc: 'Land on top of a pipe to perch safely. Tap to take off.' },
+    { id: 'kite',    icon: '\u{1FA81}',       name: 'Kite Tail',        desc: 'You hang in the air for a moment at the top of every flap.' },
+  ];
+  const has = {};
+  let nextUpgradeScore = 5;
+  let shieldReady = false, shieldStreak = 0;
+  let peckReady = false, peckCharge = 0;
+  let rewindReady = false;
+
+  // ---------- shop (permanent purchases, persisted) ----------
+  const SHOP_ITEMS = [
+    { id: 'earlybird', name: 'Early Bird',      price: 30,  desc: 'Every run begins with a free upgrade choice.' },
+    { id: 'hearts',    name: 'Extra Hearts',    price: 50,  desc: 'The snake ambush starts you at 12 HP instead of 10.' },
+    { id: 'blade',     name: 'Golden Blade',    price: 60,  desc: 'Parried snake kills pay $10 instead of $5.' },
+    { id: 'quickdraw', name: 'Quickdraw',       price: 80,  desc: 'The katana parry cooldown is halved.' },
+    { id: 'phoenix',   name: 'Phoenix Feather', price: 100, desc: 'Once per run, a fatal crash revives you in a burst of flame.' },
+  ];
+  let shopOwned = {};
+  try { shopOwned = JSON.parse(localStorage.getItem('flappy-shop')) || {}; } catch (e) {}
+
+  // ---------- snake phase (score 50+) ----------
+  const SNAKE_SCORE = 50;
+  const MAX_HP = 10;
+  const SNAKE_GOLD = 5;
+  let maxHp = MAX_HP;
+  let snakePhase = false;
+  let phoenixUsed = false;
+  let hp = 0;
+  let goldTotal = 0;
+  let goldRun = 0;
+  try { goldTotal = parseInt(localStorage.getItem('flappy-gold'), 10) || 0; } catch (e) {}
+  const bullets = [];      // { x, y, vx, vy, friendly, pipe }
+  let parryWindowUntil = -10, parryCooldownUntil = -10, swingStart = -10;
+  let bulletImmuneUntil = -10;
+  let hurtFlash = 0;
+  let bannerUntil = 0;
+
+  // ---------- game state ----------
+  const START = 0, PLAYING = 1, GAMEOVER = 2, CHOICE = 3;
+  let state = START;
+  let score = 0;
+  let best = 0;
+  try { best = parseInt(localStorage.getItem('flappy-best'), 10) || 0; } catch (e) {}
+
+  const bird = { x: 0, y: 0, prevY: 0, vy: 0, r: 0, angle: 0, wing: 0 };
+  const pipes = [];   // { x, gapC (fraction of playable height), scored, snake? }
+  let groundOffset = 0;
+  let diedAt = 0;
+  let gameTime = 0;        // accumulated play time (pauses stop it)
+  let invulnUntil = 0;     // gameTime until which pipe hits are ignored
+  let holding = false;     // finger / key currently held (Glider Wings)
+  let perched = false;     // sitting on a pipe cap (Perch Claws)
+  let hangTimer = 0, hangArmed = false;  // Kite Tail apex hang
+  let focusActive = false; // Falcon Focus slow-mo engaged
+  let rewindFlash = 0;
+  const history = [];      // ~2s ring buffer of snapshots for Rewind Totem
+  const particles = [];    // wood splinters / snake bits
+  const popups = [];       // floating feedback text
+
+  // world parameters derived from viewport each frame
+  function params() {
+    const S = H / 667;                                // scale vs. iPhone-ish reference
+    return {
+      gravity: 1550 * S * (has.moon ? 0.55 : 1),
+      flapV:   -480 * S * (has.moon ? 0.72 : 1) * (has.humming ? 0.88 : 1),
+      speed:   Math.max(150, Math.min(W, 520) * 0.42),
+      pipeW:   Math.max(52, Math.min(W, 520) * 0.16),
+      gap:     Math.max(140 * S, 4.6 * (16 * S) * 2), // comfortably > bird
+      spacing: Math.max(210, Math.min(W, 520) * 0.58),
+      groundH: Math.max(48, H * 0.11),
+      birdR:   Math.max(12, 15 * S) * (has.humming ? 0.62 : 1),
+      glideCap: 130 * S,
+      bulletV: Math.max(200, Math.min(W, 520) * 0.72),
+    };
+  }
+
+  function resetGame() {
+    const p = params();
+    score = 0;
+    pipes.length = 0;
+    particles.length = 0;
+    popups.length = 0;
+    history.length = 0;
+    bullets.length = 0;
+    for (const u of UPGRADES) delete has[u.id];
+    nextUpgradeScore = 5;
+    shieldReady = false; shieldStreak = 0;
+    peckReady = false; peckCharge = 0;
+    rewindReady = false;
+    snakePhase = false;
+    phoenixUsed = false;
+    hp = 0;
+    goldRun = 0;
+    parryWindowUntil = -10; parryCooldownUntil = -10; swingStart = -10;
+    bulletImmuneUntil = -10;
+    hurtFlash = 0; bannerUntil = 0;
+    gameTime = 0; invulnUntil = 0;
+    holding = false; perched = false;
+    hangTimer = 0; hangArmed = false;
+    focusActive = false; rewindFlash = 0;
+    bird.x = W * 0.28;
+    bird.y = (H - p.groundH) * 0.45;
+    bird.prevY = bird.y;
+    bird.vy = 0;
+    bird.angle = 0;
+    bird.r = p.birdR;
+    updateOwnedBar();
+    choiceScreen.classList.add('hidden');
+    parryBtn.classList.add('hidden');
+  }
+
+  function startGame() {
+    resetGame();
+    state = PLAYING;
+    startScreen.classList.add('hidden');
+    gameOverScreen.classList.add('hidden');
+    flap();
+    if (shopOwned.earlybird) {
+      // free upgrade choice at the start of every run, without moving the 5-point schedule
+      const n = nextUpgradeScore;
+      openChoice();
+      nextUpgradeScore = n;
+    }
+  }
+
+  function flap() {
+    const p = params();
+    perched = false;
+    bird.vy = p.flapV;
+    bird.wing = 1;
+    hangArmed = !!has.kite;
+    hangTimer = 0;
+    sfx.flap();
+  }
+
+  function die() {
+    state = GAMEOVER;
+    diedAt = performance.now();
+    perched = false;
+    holding = false;
+    sfx.hit();
+    if (score > best) {
+      best = score;
+      try { localStorage.setItem('flappy-best', String(best)); } catch (e) {}
+      newBestEl.classList.remove('hidden');
+    } else {
+      newBestEl.classList.add('hidden');
+    }
+    finalScoreEl.textContent = score;
+    bestScoreEl.textContent = best;
+    goldEarnedEl.textContent = goldRun;
+    goldTotalEl.textContent = goldTotal;
+    walletStartEl.textContent = goldTotal;
+    parryBtn.classList.add('hidden');
+    setTimeout(() => {
+      gameOverScreen.classList.remove('hidden');
+    }, 450);
+  }
+
+  // ---------- upgrade flow ----------
+  function openChoice() {
+    nextUpgradeScore += 5;
+    const pool = UPGRADES.filter(u => !has[u.id]);
+    if (!pool.length) return;
+    const opts = [];
+    while (opts.length < 3 && pool.length) {
+      opts.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    }
+    choiceCards.innerHTML = opts.map(u =>
+      '<button type="button" class="upg-card" data-id="' + u.id + '">' +
+        '<span class="upg-icon">' + u.icon + '</span>' +
+        '<span><span class="upg-name">' + u.name + '</span>' +
+        '<span class="upg-desc">' + u.desc + '</span></span>' +
+      '</button>').join('');
+    state = CHOICE;
+    choiceScreen.classList.remove('hidden');
+    sfx.powerup();
+  }
+
+  function chooseUpgrade(id) {
+    if (!id || has[id]) return;
+    has[id] = true;
+    if (id === 'shield') { shieldReady = true; shieldStreak = 0; }
+    if (id === 'peck')   { peckReady = true;  peckCharge = 0; }
+    if (id === 'rewind') { rewindReady = true; }
+    choiceScreen.classList.add('hidden');
+    state = PLAYING;
+    perched = false;
+    bird.vy = params().flapV * 0.9;   // gentle boost so resuming is safe
+    invulnUntil = gameTime + 1.2;
+    sfx.powerup();
+    updateOwnedBar();
+  }
+
+  function updateOwnedBar() {
+    ownedBar.innerHTML = UPGRADES.filter(u => has[u.id]).map(u => {
+      const dim = (u.id === 'shield' && !shieldReady) ||
+                  (u.id === 'peck' && !peckReady) ||
+                  (u.id === 'rewind' && !rewindReady);
+      return '<span style="opacity:' + (dim ? 0.35 : 1) + '">' + u.icon + '</span>';
+    }).join('');
+  }
+
+  function onPipePassed(centered) {
+    // Guardian Feather comes back only after 3 consecutive dead-centre passes
+    if (has.shield && !shieldReady) {
+      if (centered) {
+        shieldStreak++;
+        if (shieldStreak >= SHIELD_STREAK_NEEDED) {
+          shieldReady = true; shieldStreak = 0;
+          sfx.recharge(); updateOwnedBar();
+          popup('Shield restored!');
+        } else {
+          sfx.tick();
+          popup('Perfect ' + shieldStreak + '/' + SHIELD_STREAK_NEEDED);
+        }
+      } else if (shieldStreak > 0) {
+        shieldStreak = 0;
+        popup('Streak lost');
+      }
+    }
+    if (has.peck && !peckReady && ++peckCharge >= RECHARGE_PIPES) {
+      peckReady = true; peckCharge = 0; sfx.recharge(); updateOwnedBar();
+    }
+  }
+
+  function popup(text, x, y) {
+    popups.push({ text, x: x !== undefined ? x : bird.x, y: y !== undefined ? y : bird.y - bird.r * 2.2, life: 1.0 });
+  }
+
+  function doRewind() {
+    const snap = history[0];
+    rewindReady = false;
+    bird.y = snap.y;
+    bird.prevY = snap.y;
+    bird.vy = Math.min(snap.vy, 0);
+    score = snap.score;
+    groundOffset = snap.groundOffset;
+    pipes.length = 0;
+    for (const pp of snap.pipes) {
+      pipes.push({ x: pp.x, gapC: pp.gapC, scored: pp.scored, snake: pp.snake ? { ...pp.snake } : undefined });
+    }
+    bullets.length = 0;
+    history.length = 0;
+    perched = false;
+    invulnUntil = gameTime + 1.2;
+    rewindFlash = 0.6;
+    sfx.rewind();
+    updateOwnedBar();
+  }
+
+  function splinter(pipe, p, skyH) {
+    const gapY = pipe.gapC * skyH;
+    for (let i = 0; i < 26; i++) {
+      const topSide = Math.random() < 0.5;
+      particles.push({
+        x: pipe.x + Math.random() * p.pipeW,
+        y: topSide ? Math.random() * Math.max(1, gapY - p.gap / 2)
+                   : gapY + p.gap / 2 + Math.random() * Math.max(1, skyH - gapY - p.gap / 2),
+        vx: 60 + Math.random() * 240,
+        vy: -180 + Math.random() * 360,
+        life: 0.5 + Math.random() * 0.4,
+        c: Math.random() < 0.5 ? '#5eb716' : '#37540f',
+      });
+    }
+  }
+
+  // ---------- snake phase helpers ----------
+  function snakePos(pipe, p, skyH) {
+    const gapY = pipe.gapC * skyH;
+    const s = pipe.snake;
+    const lipH = Math.min(26, p.pipeW * 0.42);
+    let y;
+    if (s.side === 'top') {
+      y = Math.max(24, (gapY - p.gap / 2 - lipH) * (0.35 + 0.45 * s.fy));
+    } else {
+      const capB = gapY + p.gap / 2 + lipH;
+      y = Math.min(skyH - 20, capB + 24 + s.fy * Math.max(10, (skyH - capB) * 0.35));
+    }
+    return { x: pipe.x, y };
+  }
+
+  function killSnake(pipe, sp) {
+    pipe.snake.alive = false;
+    const reward = shopOwned.blade ? SNAKE_GOLD * 2 : SNAKE_GOLD;
+    goldRun += reward;
+    goldTotal += reward;
+    try { localStorage.setItem('flappy-gold', String(goldTotal)); } catch (e) {}
+    for (let i = 0; i < 14; i++) {
+      particles.push({
+        x: sp.x, y: sp.y,
+        vx: -120 + Math.random() * 240,
+        vy: -160 + Math.random() * 260,
+        life: 0.4 + Math.random() * 0.35,
+        c: Math.random() < 0.5 ? '#8a5bb8' : '#543847',
+      });
+    }
+    popup('+$' + reward, sp.x, sp.y - 20);
+    sfx.snakeDie();
+    sfx.coin();
+  }
+
+  // Phoenix Feather (shop): one free revival per run
+  function phoenixAvail() {
+    return !!shopOwned.phoenix && !phoenixUsed;
+  }
+  function usePhoenix(p) {
+    phoenixUsed = true;
+    invulnUntil = gameTime + 1.5;
+    bird.vy = p.flapV;
+    rewindFlash = 0.45;
+    for (let i = 0; i < 20; i++) {
+      particles.push({
+        x: bird.x, y: bird.y,
+        vx: -200 + Math.random() * 400,
+        vy: -260 + Math.random() * 320,
+        life: 0.45 + Math.random() * 0.4,
+        c: Math.random() < 0.5 ? '#e86101' : '#ffcf3f',
+      });
+    }
+    popup('Phoenix!');
+    sfx.powerup();
+  }
+
+  function parry() {
+    if (!snakePhase || state !== PLAYING) return;
+    if (gameTime < parryCooldownUntil) return;
+    parryCooldownUntil = gameTime + (shopOwned.quickdraw ? 0.22 : 0.45);
+    parryWindowUntil = gameTime + 0.16;
+    swingStart = gameTime;
+    sfx.swing();
+  }
+
+  // ---------- update ----------
+  function update(dt) {
+    const p = params();
+    const skyH = H - p.groundH;
+
+    if (state === CHOICE) return;   // world is frozen behind the upgrade cards
+
+    if (state !== PLAYING) {
+      groundOffset = (groundOffset + p.speed * dt) % 48;
+      if (state === START) {
+        // idle hover on the start screen
+        bird.x = W * 0.28;
+        bird.y = skyH * 0.45 + Math.sin(performance.now() / 300) * 8;
+        bird.r = p.birdR;
+        bird.angle = 0;
+      } else if (state === GAMEOVER && bird.y + bird.r < skyH) {
+        // dead bird falls to the ground
+        bird.vy += p.gravity * dt;
+        bird.y = Math.min(bird.y + bird.vy * dt, skyH - bird.r);
+        bird.angle = Math.min(bird.angle + 6 * dt, Math.PI / 2);
+      }
+      return;
+    }
+
+    gameTime += dt;
+    rewindFlash = Math.max(0, rewindFlash - 2 * dt);
+    hurtFlash = Math.max(0, hurtFlash - 1.8 * dt);
+
+    // snake phase begins at 50
+    if (!snakePhase && score >= SNAKE_SCORE) {
+      snakePhase = true;
+      maxHp = shopOwned.hearts ? 12 : MAX_HP;
+      hp = maxHp;
+      bannerUntil = gameTime + 2.5;
+      parryBtn.classList.remove('hidden');
+      sfx.powerup();
+    }
+
+    // Falcon Focus: slow the whole world while threading a pipe
+    focusActive = !!has.focus && pipes.some(pp =>
+      bird.x + bird.r > pp.x - 40 && bird.x - bird.r < pp.x + p.pipeW + 10);
+    if (focusActive) dt *= 0.55;
+
+    groundOffset = (groundOffset + p.speed * dt) % 48;
+
+    // bird physics
+    bird.prevY = bird.y;
+    bird.r = p.birdR;
+    if (perched) {
+      bird.vy = 0;
+    } else if (hangTimer > 0) {       // Kite Tail: hang at the apex
+      hangTimer -= dt;
+      bird.vy = 0;
+    } else {
+      const prevVy = bird.vy;
+      bird.vy += p.gravity * dt;
+      if (hangArmed && prevVy <= 0 && bird.vy > 0) {
+        bird.vy = 0;
+        hangTimer = 0.16;
+        hangArmed = false;
+      }
+      // Glider Wings: cap fall speed while held
+      if (has.glide && holding && bird.vy > p.glideCap) bird.vy = p.glideCap;
+    }
+    bird.y += bird.vy * dt;
+    bird.wing = Math.max(0, bird.wing - dt * 6);
+    const target = perched ? 0 : (bird.vy < 0 ? -0.45 : Math.min(bird.vy / (H * 0.9), 1.35));
+    bird.angle += (target - bird.angle) * Math.min(1, dt * 12);
+
+    if (bird.y - bird.r < 0) { bird.y = bird.r; bird.vy = 0; }
+
+    // spawn / recycle pipes
+    if (pipes.length === 0 || pipes[pipes.length - 1].x < W - p.spacing) {
+      const margin = (p.gap / 2 + skyH * 0.08) / skyH;
+      const pipe = {
+        x: Math.max(W, pipes.length ? pipes[pipes.length - 1].x + p.spacing : W) + p.pipeW,
+        gapC: margin + Math.random() * (1 - 2 * margin),
+        scored: false,
+      };
+      if (snakePhase && Math.random() < 0.8) {
+        pipe.snake = { side: Math.random() < 0.5 ? 'top' : 'bot', fy: Math.random(), alive: true, nextShot: 0 };
+      }
+      pipes.push(pipe);
+    }
+    for (const pipe of pipes) pipe.x -= p.speed * dt;
+    while (pipes.length && pipes[0].x + p.pipeW < -10) pipes.shift();
+
+    // Perch Claws: stick to the supporting pipe cap while it scrolls
+    if (perched) {
+      const sup = pipes.find(pp =>
+        bird.x + bird.r * 0.5 > pp.x && bird.x - bird.r * 0.5 < pp.x + p.pipeW);
+      if (sup) {
+        bird.y = sup.gapC * skyH + p.gap / 2 - bird.r;
+        bird.vy = 0;
+      } else {
+        perched = false;    // slid off the edge — back to falling
+      }
+    }
+
+    // snakes fire at the bird
+    if (snakePhase) {
+      const enemyCount = bullets.reduce((n, b) => n + (b.friendly ? 0 : 1), 0);
+      for (const pipe of pipes) {
+        const s = pipe.snake;
+        if (!s || !s.alive) continue;
+        if (pipe.x > W - 20 || pipe.x + p.pipeW < bird.x - 80) continue;  // offscreen or passed
+        if (!s.nextShot) { s.nextShot = gameTime + 0.7 + Math.random() * 0.9; continue; }
+        if (gameTime >= s.nextShot && enemyCount < 4) {
+          const sp = snakePos(pipe, p, skyH);
+          const mx = sp.x - 39, my = sp.y - 4;
+          const ang = Math.atan2(bird.y - my, bird.x - mx);
+          bullets.push({ x: mx, y: my, vx: Math.cos(ang) * p.bulletV, vy: Math.sin(ang) * p.bulletV, friendly: false, pipe });
+          s.nextShot = gameTime + 1.6 + Math.random();
+          sfx.shoot();
+        }
+      }
+    }
+
+    // parry window: deflect nearby enemy bullets back at their snakes
+    if (gameTime < parryWindowUntil) {
+      for (const b of bullets) {
+        if (b.friendly) continue;
+        const d = Math.hypot(b.x - bird.x, b.y - bird.y);
+        if (d < bird.r * 4.2) {
+          b.friendly = true;
+          sfx.parry();
+        }
+      }
+    }
+
+    // bullets
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      const b = bullets[i];
+      if (b.friendly && b.pipe && b.pipe.snake && b.pipe.snake.alive && pipes.includes(b.pipe)) {
+        // home in on the source snake
+        const sp = snakePos(b.pipe, p, skyH);
+        const d = Math.hypot(sp.x - b.x, sp.y - b.y);
+        if (d < 18) {
+          killSnake(b.pipe, sp);
+          bullets.splice(i, 1);
+          continue;
+        }
+        const fv = p.bulletV * 1.55;
+        b.vx = (sp.x - b.x) / d * fv;
+        b.vy = (sp.y - b.y) / d * fv;
+      }
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      if (!b.friendly && state === PLAYING &&
+          Math.hypot(b.x - bird.x, b.y - bird.y) < bird.r * 0.95 + 4) {
+        bullets.splice(i, 1);
+        if (gameTime >= bulletImmuneUntil && gameTime >= invulnUntil) {
+          hp--;
+          bulletImmuneUntil = gameTime + 0.6;
+          hurtFlash = 0.35;
+          sfx.hurt();
+          if (hp <= 0) { die(); return; }
+        }
+        continue;
+      }
+      if (b.x < -60 || b.x > W + 60 || b.y < -60 || b.y > H + 60) bullets.splice(i, 1);
+    }
+
+    // floating feedback text
+    for (let i = popups.length - 1; i >= 0; i--) {
+      const q = popups[i];
+      q.life -= dt;
+      q.y -= 45 * dt;
+      if (q.life <= 0) popups.splice(i, 1);
+    }
+
+    // particles (wood splinters / snake bits)
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const q = particles[i];
+      q.life -= dt;
+      if (q.life <= 0) { particles.splice(i, 1); continue; }
+      q.x += q.vx * dt;
+      q.vy += 1200 * dt;
+      q.y += q.vy * dt;
+    }
+
+    // scoring + collision
+    const br = bird.r * 0.88; // slightly forgiving hitbox
+    const invuln = gameTime < invulnUntil;
+    for (let i = pipes.length - 1; i >= 0; i--) {
+      const pipe = pipes[i];
+      const gapY = pipe.gapC * skyH;
+      if (!pipe.scored && pipe.x + p.pipeW < bird.x - bird.r) {
+        pipe.scored = true;
+        score++;
+        sfx.score();
+        onPipePassed(Math.abs(bird.y - gapY) <= p.gap * CENTER_TOLERANCE);
+      }
+      const gapTop = gapY - p.gap / 2, gapBot = gapY + p.gap / 2;
+      if (bird.x + br > pipe.x && bird.x - br < pipe.x + p.pipeW) {
+        const hitTop = bird.y - br < gapTop;
+        const hitBot = bird.y + br > gapBot;
+        if (!hitTop && !hitBot) continue;
+        if (invuln || perched) continue;
+        // Perch Claws: falling onto a bottom-pipe cap is a landing, not a crash
+        if (hitBot && !hitTop && has.perch && bird.vy > 0 && bird.prevY + br <= gapBot + 14) {
+          perched = true;
+          bird.y = gapBot - bird.r;
+          bird.vy = 0;
+          bird.angle = 0;
+          sfx.perch();
+          continue;
+        }
+        if (has.peck && peckReady) {
+          peckReady = false; peckCharge = 0;
+          splinter(pipe, p, skyH);
+          pipes.splice(i, 1);
+          sfx.smash();
+          updateOwnedBar();
+          continue;
+        }
+        if (has.shield && shieldReady) {
+          shieldReady = false; shieldStreak = 0;
+          invulnUntil = gameTime + 1.0;
+          sfx.shieldBreak();
+          updateOwnedBar();
+          continue;
+        }
+        if (has.rewind && rewindReady && history.length) { doRewind(); return; }
+        if (phoenixAvail()) { usePhoenix(p); continue; }
+        die();
+        return;
+      }
+    }
+
+    // ground collision
+    if (bird.y + bird.r >= skyH) {
+      if (has.shield && shieldReady) {
+        shieldReady = false; shieldStreak = 0;
+        bird.y = skyH - bird.r;
+        bird.vy = p.flapV;
+        invulnUntil = gameTime + 1.0;
+        sfx.shieldBreak();
+        updateOwnedBar();
+      } else if (invuln) {
+        bird.y = skyH - bird.r;
+        bird.vy = p.flapV * 0.8;
+      } else if (has.rewind && rewindReady && history.length) {
+        doRewind();
+        return;
+      } else if (phoenixAvail()) {
+        bird.y = skyH - bird.r;
+        usePhoenix(p);
+      } else {
+        bird.y = skyH - bird.r;
+        die();
+        return;
+      }
+    }
+
+    // roguelike pause: every 5 points, pick an upgrade
+    if (score >= nextUpgradeScore && UPGRADES.some(u => !has[u.id])) {
+      openChoice();
+      return;
+    }
+
+    // Rewind Totem: record ~2s of snapshots
+    history.push({
+      y: bird.y, vy: bird.vy, score, groundOffset,
+      pipes: pipes.map(pp => ({ x: pp.x, gapC: pp.gapC, scored: pp.scored, snake: pp.snake ? { ...pp.snake } : undefined })),
+    });
+    if (history.length > 120) history.shift();
+  }
+
+  // ---------- draw ----------
+  function draw() {
+    const p = params();
+    const skyH = H - p.groundH;
+
+    // sky
+    const sky = ctx.createLinearGradient(0, 0, 0, skyH);
+    sky.addColorStop(0, '#71c5cf');
+    sky.addColorStop(1, '#b3e5ee');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, skyH);
+
+    // distant clouds (fixed, cheap)
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    for (let i = 0; i < 4; i++) {
+      const cx = ((i * 0.27 + 0.1) * W + W) % W;
+      const cy = skyH * (0.18 + (i % 3) * 0.16);
+      const cr = 16 + (i % 2) * 10;
+      ctx.beginPath();
+      ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+      ctx.arc(cx + cr * 0.9, cy + 4, cr * 0.7, 0, Math.PI * 2);
+      ctx.arc(cx - cr * 0.9, cy + 5, cr * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // pipes
+    for (const pipe of pipes) drawPipe(pipe, p, skyH);
+
+    // snakes
+    for (const pipe of pipes) {
+      if (pipe.snake && pipe.snake.alive) {
+        const sp = snakePos(pipe, p, skyH);
+        drawSnake(sp.x, sp.y);
+      }
+    }
+
+    // Guardian Feather: mark the dead-centre band to thread for restoring the shield
+    if (has.shield && !shieldReady && state === PLAYING) {
+      const bandH = p.gap * CENTER_TOLERANCE * 2;
+      ctx.save();
+      for (const pipe of pipes) {
+        if (pipe.x + p.pipeW < bird.x - bird.r) continue;  // already passed
+        const gapY = pipe.gapC * skyH;
+        ctx.fillStyle = 'rgba(90,200,255,0.20)';
+        ctx.fillRect(pipe.x, gapY - bandH / 2, p.pipeW, bandH);
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = 'rgba(90,200,255,0.7)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(pipe.x, gapY - bandH / 2);
+        ctx.lineTo(pipe.x + p.pipeW, gapY - bandH / 2);
+        ctx.moveTo(pipe.x, gapY + bandH / 2);
+        ctx.lineTo(pipe.x + p.pipeW, gapY + bandH / 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // bullets
+    for (const b of bullets) {
+      ctx.beginPath();
+      if (b.friendly) {
+        ctx.fillStyle = '#8ef1ff';
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.arc(b.x, b.y, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = '#37273f';
+        ctx.strokeStyle = '#e86101';
+        ctx.lineWidth = 2;
+        ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    // splinters
+    for (const q of particles) {
+      ctx.fillStyle = q.c;
+      ctx.globalAlpha = Math.min(1, q.life * 2.5);
+      ctx.fillRect(q.x - 2, q.y - 2, 4, 4);
+    }
+    ctx.globalAlpha = 1;
+
+    // ground
+    ctx.fillStyle = '#ded895';
+    ctx.fillRect(0, skyH, W, p.groundH);
+    ctx.fillStyle = '#9bd85a';
+    ctx.fillRect(0, skyH, W, Math.min(14, p.groundH * 0.25));
+    ctx.strokeStyle = '#543847';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, skyH + 1);
+    ctx.lineTo(W, skyH + 1);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(84,56,71,0.18)';
+    for (let x = -groundOffset; x < W; x += 48) {
+      ctx.beginPath();
+      ctx.moveTo(x, skyH + p.groundH);
+      ctx.lineTo(x + 24, skyH + Math.min(14, p.groundH * 0.25));
+      ctx.lineTo(x + 34, skyH + Math.min(14, p.groundH * 0.25));
+      ctx.lineTo(x + 10, skyH + p.groundH);
+      ctx.fill();
+    }
+
+    drawBird();
+
+    // floating feedback text
+    if (popups.length) {
+      ctx.save();
+      ctx.font = '800 16px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.lineWidth = 4;
+      for (const q of popups) {
+        ctx.globalAlpha = Math.min(1, q.life * 2);
+        ctx.strokeStyle = '#543847';
+        ctx.fillStyle = '#8ef1ff';
+        ctx.strokeText(q.text, q.x, q.y);
+        ctx.fillText(q.text, q.x, q.y);
+      }
+      ctx.restore();
+    }
+
+    // Falcon Focus vignette
+    if (focusActive && state === PLAYING) {
+      const v = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35,
+                                         W / 2, H / 2, Math.max(W, H) * 0.75);
+      v.addColorStop(0, 'rgba(30,40,90,0)');
+      v.addColorStop(1, 'rgba(30,40,90,0.3)');
+      ctx.fillStyle = v;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // hurt flash
+    if (hurtFlash > 0) {
+      ctx.fillStyle = 'rgba(220,40,40,' + (hurtFlash * 0.55).toFixed(3) + ')';
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // Rewind flash
+    if (rewindFlash > 0) {
+      ctx.fillStyle = 'rgba(255,255,255,' + rewindFlash.toFixed(3) + ')';
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // score
+    const sy = Math.max(20, H * 0.06);
+    if (state !== START) {
+      // one point away from an upgrade choice (fledgling phase): blink the score red
+      const oneAway = state === PLAYING && score === nextUpgradeScore - 1 &&
+                      UPGRADES.some(u => !has[u.id]);
+      ctx.font = `800 ${Math.max(34, H * 0.06)}px -apple-system, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = '#543847';
+      ctx.fillStyle = oneAway && Math.floor(performance.now() / 250) % 2 === 0 ? '#ff4040' : '#fff';
+      ctx.strokeText(score, W / 2, sy);
+      ctx.fillText(score, W / 2, sy);
+    }
+
+    // gold (top-right)
+    ctx.font = '800 20px -apple-system, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#543847';
+    ctx.fillStyle = '#ffd34e';
+    ctx.strokeText('$' + goldTotal, W - 14, sy);
+    ctx.fillText('$' + goldTotal, W - 14, sy);
+
+    // HP bar (top-right, snake phase only)
+    if (snakePhase && state !== START) {
+      const segW = 8, segH = 13, gap = 3;
+      const total = maxHp * segW + (maxHp - 1) * gap;
+      const x0 = W - 14 - total;
+      const y0 = sy + 30;
+      for (let i = 0; i < maxHp; i++) {
+        ctx.fillStyle = i < hp ? '#ff5d5d' : 'rgba(255,255,255,0.3)';
+        ctx.strokeStyle = '#543847';
+        ctx.lineWidth = 1.5;
+        ctx.fillRect(x0 + i * (segW + gap), y0, segW, segH);
+        ctx.strokeRect(x0 + i * (segW + gap), y0, segW, segH);
+      }
+    }
+
+    // snake phase banner
+    if (state === PLAYING && gameTime < bannerUntil) {
+      ctx.font = `800 ${Math.max(26, H * 0.042)}px -apple-system, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = '#543847';
+      ctx.fillStyle = '#ffcf3f';
+      ctx.strokeText('SNAKE AMBUSH!', W / 2, H * 0.3);
+      ctx.fillText('SNAKE AMBUSH!', W / 2, H * 0.3);
+      ctx.font = `700 ${Math.max(15, H * 0.022)}px -apple-system, sans-serif`;
+      ctx.lineWidth = 4;
+      ctx.fillStyle = '#fff';
+      ctx.strokeText('Parry their bullets back at them!', W / 2, H * 0.3 + Math.max(34, H * 0.05));
+      ctx.fillText('Parry their bullets back at them!', W / 2, H * 0.3 + Math.max(34, H * 0.05));
+    }
+  }
+
+  function drawPipe(pipe, p, skyH) {
+    const gapY = pipe.gapC * skyH;
+    const topH = gapY - p.gap / 2;
+    const botY = gapY + p.gap / 2;
+    const lip = 10;
+    const lipH = Math.min(26, p.pipeW * 0.42);
+
+    const grad = ctx.createLinearGradient(pipe.x, 0, pipe.x + p.pipeW, 0);
+    grad.addColorStop(0, '#5eb716');
+    grad.addColorStop(0.5, '#9ce659');
+    grad.addColorStop(1, '#4e9a13');
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = '#37540f';
+    ctx.lineWidth = 2;
+
+    // top pipe
+    ctx.fillRect(pipe.x, -2, p.pipeW, topH - lipH + 2);
+    ctx.strokeRect(pipe.x, -4, p.pipeW, topH - lipH + 4);
+    ctx.fillRect(pipe.x - lip / 2, topH - lipH, p.pipeW + lip, lipH);
+    ctx.strokeRect(pipe.x - lip / 2, topH - lipH, p.pipeW + lip, lipH);
+    // bottom pipe
+    ctx.fillRect(pipe.x, botY + lipH, p.pipeW, skyH - botY - lipH + 2);
+    ctx.strokeRect(pipe.x, botY + lipH, p.pipeW, skyH - botY - lipH + 4);
+    ctx.fillRect(pipe.x - lip / 2, botY, p.pipeW + lip, lipH);
+    ctx.strokeRect(pipe.x - lip / 2, botY, p.pipeW + lip, lipH);
+  }
+
+  function drawSnake(x, y) {
+    const ph = performance.now() / 250;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // rearing S-curved body from the pipe edge up to the head, slithering gently
+    const N = 14;
+    const pts = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      pts.push({
+        x: 12 - t * 34,
+        y: 20 - t * 32 + Math.sin(t * 5 + ph) * 4.5 * (1 - t * 0.6),
+      });
+    }
+    // dark outline pass, then body pass — width tapers from thin tail to thick neck
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < N; i++) {
+        const t = i / N;
+        const wBody = 3 + 7 * Math.sin(Math.min(1, t * 1.35) * Math.PI * 0.62);
+        ctx.strokeStyle = pass === 0 ? '#543847' : '#8a5bb8';
+        ctx.lineWidth = pass === 0 ? wBody + 2.5 : wBody;
+        ctx.beginPath();
+        ctx.moveTo(pts[i].x, pts[i].y);
+        ctx.lineTo(pts[i + 1].x, pts[i + 1].y);
+        ctx.stroke();
+      }
+    }
+    // diamond back markings
+    ctx.fillStyle = '#5e3a8c';
+    for (let i = 4; i < N - 1; i += 3) {
+      ctx.beginPath();
+      ctx.arc(pts[i].x, pts[i].y, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const hx = pts[N].x, hy = pts[N].y;
+    // head
+    ctx.fillStyle = '#8a5bb8';
+    ctx.strokeStyle = '#543847';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(hx - 4, hy, 10, 6.5, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // slit-pupil eye
+    ctx.fillStyle = '#ffd34e';
+    ctx.beginPath();
+    ctx.arc(hx - 7, hy - 2, 2.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#222';
+    ctx.fillRect(hx - 7.6, hy - 4, 1.2, 4.5);
+    // flicking forked tongue
+    if (Math.sin(ph * 1.7) > 0.2) {
+      ctx.strokeStyle = '#e8603c';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(hx - 14, hy + 1);
+      ctx.lineTo(hx - 20, hy + 1);
+      ctx.moveTo(hx - 20, hy + 1);
+      ctx.lineTo(hx - 23, hy - 1.5);
+      ctx.moveTo(hx - 20, hy + 1);
+      ctx.lineTo(hx - 23, hy + 3.5);
+      ctx.stroke();
+    }
+    // gun held below the head
+    ctx.fillStyle = '#4a4a55';
+    ctx.strokeStyle = '#2b2b33';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(hx - 10, hy + 6, 15, 5);
+    ctx.strokeRect(hx - 10, hy + 6, 15, 5);
+    ctx.fillRect(hx - 17, hy + 7, 8, 3);
+    ctx.strokeRect(hx - 17, hy + 7, 8, 3);
+    ctx.restore();
+  }
+
+  function drawBird() {
+    const r = bird.r;
+    const gliding = has.glide && holding && bird.vy > 0 && state === PLAYING && !perched;
+    ctx.save();
+    ctx.translate(bird.x, bird.y);
+    ctx.rotate(bird.angle);
+
+    // invulnerability flicker
+    if (state === PLAYING && gameTime < invulnUntil) {
+      ctx.globalAlpha = 0.55 + 0.35 * Math.sin(performance.now() / 40);
+    }
+
+    // Kite Tail ribbon
+    if (has.kite) {
+      ctx.fillStyle = '#e86101';
+      ctx.strokeStyle = '#543847';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 2; i++) {
+        const tx = -r * (1.3 + i * 0.55);
+        const ty = Math.sin(performance.now() / 120 + i * 2) * r * 0.25;
+        ctx.beginPath();
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(tx - r * 0.45, ty - r * 0.28);
+        ctx.lineTo(tx - r * 0.45, ty + r * 0.28);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    // katana (snake phase)
+    if (snakePhase) {
+      const t = Math.min(1, Math.max(0, (gameTime - swingStart) / 0.22));
+      const a = t < 1 ? -1.8 + 2.6 * t : -0.9;
+      ctx.save();
+      ctx.translate(r * 0.55, r * 0.5);
+      ctx.rotate(a);
+      const bladeLen = r * 2.3;
+      ctx.fillStyle = '#543847';
+      ctx.fillRect(-2, -2, 4, 8);           // handle
+      ctx.fillRect(-4.5, -4, 9, 3);         // guard
+      const bl = ctx.createLinearGradient(0, -4, 0, -4 - bladeLen);
+      bl.addColorStop(0, '#cfd8dc');
+      bl.addColorStop(1, '#f5fbff');
+      ctx.fillStyle = bl;
+      ctx.strokeStyle = '#543847';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-2, -4);
+      ctx.lineTo(2, -4);
+      ctx.lineTo(2, -4 - bladeLen * 0.9);
+      ctx.lineTo(0, -4 - bladeLen);
+      ctx.lineTo(-2, -4 - bladeLen * 0.9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+      // slash arc while swinging
+      if (t < 1) {
+        ctx.save();
+        ctx.globalAlpha = (1 - t) * 0.7;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 2.6, -2.2 + 2.6 * t, -1.2 + 2.6 * t);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // body (Hummingbird Form recolours the bird)
+    ctx.fillStyle = has.humming ? '#7ce0c3' : '#ffd34e';
+    ctx.strokeStyle = '#543847';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 1.15, r, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // wing (flaps upward briefly after a tap; spreads wide while gliding)
+    const wingLift = bird.wing > 0 ? -r * 0.5 : r * 0.15;
+    ctx.fillStyle = has.humming ? '#3aa98f' : '#f5a623';
+    ctx.beginPath();
+    if (gliding) {
+      ctx.ellipse(-r * 0.25, -r * 0.15, r * 1.0, r * 0.38, -0.15, 0, Math.PI * 2);
+    } else {
+      ctx.ellipse(-r * 0.35, wingLift * 0.4, r * 0.62, r * 0.42, -0.3 + (bird.wing ? -0.6 : 0.2), 0, Math.PI * 2);
+    }
+    ctx.fill();
+    ctx.stroke();
+
+    // eye
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(r * 0.45, -r * 0.35, r * 0.38, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#222';
+    ctx.beginPath();
+    ctx.arc(r * 0.58, -r * 0.35, r * 0.16, 0, Math.PI * 2);
+    ctx.fill();
+
+    // beak (golden and slightly longer while Woodpecker Beak is charged, small while recharging)
+    const beakScale = has.peck ? (peckReady ? 1.15 : 0.85) : 1;
+    ctx.fillStyle = (has.peck && peckReady) ? '#ffb300' : '#e8603c';
+    ctx.beginPath();
+    ctx.moveTo(r * 0.75, 0);
+    ctx.lineTo(r * 1.55 * beakScale, r * 0.12);
+    ctx.lineTo(r * 0.75, r * 0.45);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.restore();
+
+    // Guardian Feather aura
+    if (has.shield && shieldReady) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(90,200,255,0.8)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(bird.x, bird.y, r * 1.6 + Math.sin(performance.now() / 200) * 2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // ---------- input ----------
+  const startScreen = document.getElementById('startScreen');
+  const gameOverScreen = document.getElementById('gameOverScreen');
+  const choiceScreen = document.getElementById('choiceScreen');
+  const choiceCards = document.getElementById('choiceCards');
+  const settingsScreen = document.getElementById('settingsScreen');
+  const ownedBar = document.getElementById('ownedBar');
+  const finalScoreEl = document.getElementById('finalScore');
+  const bestScoreEl = document.getElementById('bestScore');
+  const goldEarnedEl = document.getElementById('goldEarned');
+  const newBestEl = document.getElementById('newBest');
+  const restartBtn = document.getElementById('restartBtn');
+  const menuBtn = document.getElementById('menuBtn');
+  const goSettingsBtn = document.getElementById('goSettingsBtn');
+  const startBtn = document.getElementById('startBtn');
+  const startSettingsBtn = document.getElementById('startSettingsBtn');
+  const walletStartEl = document.getElementById('walletStart');
+  const goldTotalEl = document.getElementById('goldTotalEl');
+  const parryBtn = document.getElementById('parryBtn');
+  const resetPosBtn = document.getElementById('resetPosBtn');
+  const settingsDoneBtn = document.getElementById('settingsDoneBtn');
+  const devModeBtn = document.getElementById('devModeBtn');
+  const devPanel = document.getElementById('devPanel');
+  const dev45Btn = document.getElementById('dev45Btn');
+  const shopBtn = document.getElementById('shopBtn');
+  const shopBtn2 = document.getElementById('shopBtn2');
+  const shopScreen = document.getElementById('shopScreen');
+  const shopItemsEl = document.getElementById('shopItems');
+  const shopWalletEl = document.getElementById('shopWallet');
+  const shopMsgEl = document.getElementById('shopMsg');
+  const shopDoneBtn = document.getElementById('shopDoneBtn');
+
+  // parry button position (percent of viewport), persisted
+  const POS_KEY = 'flappy-parry-pos';
+  const DEFAULT_POS = { x: 85, y: 82 };
+  let parryPos = { ...DEFAULT_POS };
+  try {
+    const sv = JSON.parse(localStorage.getItem(POS_KEY));
+    if (sv && isFinite(sv.x) && isFinite(sv.y)) parryPos = sv;
+  } catch (e) {}
+  function applyParryPos() {
+    parryPos.x = Math.min(92, Math.max(8, parryPos.x));
+    parryPos.y = Math.min(92, Math.max(8, parryPos.y));
+    parryBtn.style.left = parryPos.x + '%';
+    parryBtn.style.top = parryPos.y + '%';
+  }
+  applyParryPos();
+
+  let settingsOpen = false, draggingParry = false;
+  function openSettings() {
+    settingsOpen = true;
+    settingsScreen.classList.remove('hidden');
+    startScreen.classList.add('hidden');
+    gameOverScreen.classList.add('hidden');
+    parryBtn.classList.remove('hidden');
+  }
+  function closeSettings() {
+    settingsOpen = false;
+    draggingParry = false;
+    settingsScreen.classList.add('hidden');
+    parryBtn.classList.add('hidden');
+    if (state === START) startScreen.classList.remove('hidden');
+    if (state === GAMEOVER) {
+      gameOverScreen.classList.remove('hidden');
+    }
+    try { localStorage.setItem(POS_KEY, JSON.stringify(parryPos)); } catch (e) {}
+  }
+
+  // ---------- shop ----------
+  let shopOpen = false, shopMsgTimer = null;
+  function renderShop() {
+    shopWalletEl.textContent = goldTotal;
+    shopItemsEl.innerHTML = SHOP_ITEMS.map(item => {
+      const owned = shopOwned[item.id];
+      return '<div class="shop-item">' +
+        '<span class="shop-info"><span class="shop-name">' + item.name + '</span>' +
+        '<span class="shop-desc" style="display:block">' + item.desc + '</span></span>' +
+        (owned
+          ? '<button type="button" class="shop-buy owned" disabled>Owned</button>'
+          : '<button type="button" class="shop-buy" data-id="' + item.id + '">$' + item.price + '</button>') +
+      '</div>';
+    }).join('');
+  }
+  function shopMessage(text) {
+    shopMsgEl.textContent = text;
+    clearTimeout(shopMsgTimer);
+    shopMsgTimer = setTimeout(() => { shopMsgEl.textContent = ''; }, 1600);
+  }
+  function buyItem(id) {
+    const item = SHOP_ITEMS.find(i => i.id === id);
+    if (!item || shopOwned[id]) return;
+    if (goldTotal < item.price) {
+      shopMessage('Not enough gold — need $' + item.price);
+      sfx.hurt();
+      return;
+    }
+    goldTotal -= item.price;
+    shopOwned[id] = true;
+    try {
+      localStorage.setItem('flappy-gold', String(goldTotal));
+      localStorage.setItem('flappy-shop', JSON.stringify(shopOwned));
+    } catch (e) {}
+    walletStartEl.textContent = goldTotal;
+    shopMessage(item.name + ' purchased!');
+    sfx.coin();
+    sfx.powerup();
+    renderShop();
+  }
+  function openShop() {
+    shopOpen = true;
+    renderShop();
+    shopMsgEl.textContent = '';
+    shopScreen.classList.remove('hidden');
+    startScreen.classList.add('hidden');
+    gameOverScreen.classList.add('hidden');
+  }
+  function closeShop() {
+    shopOpen = false;
+    shopScreen.classList.add('hidden');
+    if (state === START) startScreen.classList.remove('hidden');
+    if (state === GAMEOVER) gameOverScreen.classList.remove('hidden');
+    walletStartEl.textContent = goldTotal;
+  }
+
+  function toStartMenu() {
+    state = START;
+    resetGame();
+    gameOverScreen.classList.add('hidden');
+    startScreen.classList.remove('hidden');
+    walletStartEl.textContent = goldTotal;
+  }
+
+  // Dev Mode: jump straight to score 45 with the full upgrade kit
+  function devStart45() {
+    closeSettings();
+    startGame();
+    score = 45;
+    nextUpgradeScore = 50;   // pool is fully owned, no more choosers
+    for (const u of UPGRADES) has[u.id] = true;
+    shieldReady = true; shieldStreak = 0;
+    peckReady = true; peckCharge = 0;
+    rewindReady = true;
+    choiceScreen.classList.add('hidden');   // Early Bird's chooser is moot with everything owned
+    state = PLAYING;
+    updateOwnedBar();
+  }
+
+  function primaryAction() {
+    ensureAudio();
+    if (state === START) startGame();
+    else if (state === PLAYING) flap();
+    else if (state === GAMEOVER && performance.now() - diedAt > 600 &&
+             !gameOverScreen.classList.contains('hidden')) {
+      startGame();
+    }
+  }
+
+  // pointerdown covers touch + mouse + pen, and fires even though we
+  // preventDefault touchstart (which suppresses synthesized clicks)
+  document.addEventListener('pointerdown', (e) => {
+    const t = e.target;
+    if (settingsOpen) {
+      if (t === parryBtn) draggingParry = true;
+      else if (t === resetPosBtn) { parryPos = { ...DEFAULT_POS }; applyParryPos(); }
+      else if (t === settingsDoneBtn) closeSettings();
+      else if (t === devModeBtn) devPanel.classList.toggle('hidden');
+      else if (t === dev45Btn) { ensureAudio(); devStart45(); }
+      return;
+    }
+    if (shopOpen) {
+      if (t === shopDoneBtn) { closeShop(); return; }
+      const buyB = t.closest && t.closest('.shop-buy');
+      if (buyB && buyB.dataset.id) { ensureAudio(); buyItem(buyB.dataset.id); }
+      return;
+    }
+    if (t === shopBtn || t === shopBtn2) { openShop(); return; }
+    if (t === parryBtn) { ensureAudio(); parry(); return; }
+    if (state === CHOICE) {
+      const card = t.closest && t.closest('.upg-card');
+      if (card) { ensureAudio(); chooseUpgrade(card.dataset.id); }
+      return;
+    }
+    if (t === restartBtn || t === startBtn) { ensureAudio(); startGame(); return; }
+    if (t === menuBtn) { toStartMenu(); return; }
+    if (t === startSettingsBtn || t === goSettingsBtn) { openSettings(); return; }
+    if (state === START) return;   // starting requires the Start button now
+    holding = true;
+    primaryAction();
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (draggingParry) {
+      parryPos = { x: (e.clientX / W) * 100, y: (e.clientY / H) * 100 };
+      applyParryPos();
+    }
+  });
+  document.addEventListener('pointerup', () => { holding = false; draggingParry = false; });
+  document.addEventListener('pointercancel', () => { holding = false; draggingParry = false; });
+
+  window.addEventListener('keydown', (e) => {
+    if (state === CHOICE && (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3')) {
+      const card = choiceCards.children[Number(e.code.slice(-1)) - 1];
+      if (card) { ensureAudio(); chooseUpgrade(card.dataset.id); }
+      return;
+    }
+    if (e.code === 'KeyP' || e.code === 'Enter') {
+      ensureAudio();
+      parry();
+      return;
+    }
+    if (e.code === 'Space' || e.code === 'ArrowUp') {
+      e.preventDefault();
+      if (!e.repeat) {
+        holding = true;
+        primaryAction();
+      }
+    }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space' || e.code === 'ArrowUp') holding = false;
+  });
+
+  // ---------- main loop ----------
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min((now - last) / 1000, 1 / 30);
+    last = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  resize();
+  resetGame();
+  walletStartEl.textContent = goldTotal;
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
