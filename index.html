@@ -187,6 +187,14 @@
     white-space: nowrap;
   }
   .shop-buy.owned { background: #9bd85a; color: #37540f; box-shadow: 0 3px 0 #5e8a2e; }
+  .shop-empty {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.45;
+    color: #7a6a52;
+    padding: 14px 0 6px;
+    width: min(78vw, 320px);
+  }
   .set-hint { font-size: 15px; margin: 8px 0 14px; max-width: 260px; }
   .set-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
   .checkpoint-note {
@@ -378,15 +386,17 @@
   let rewindReady = false;
 
   // ---------- shop (permanent purchases, persisted) ----------
-  const SHOP_ITEMS = [
-    { id: 'earlybird', name: 'Early Bird',      price: 30,  desc: 'Every run begins with a free upgrade choice.' },
-    { id: 'hearts',    name: 'Extra Hearts',    price: 50,  desc: 'The snake ambush starts you at 12 HP instead of 10.' },
-    { id: 'blade',     name: 'Golden Blade',    price: 60,  desc: 'Parried snake kills pay $10 instead of $5.' },
-    { id: 'quickdraw', name: 'Quickdraw',       price: 80,  desc: 'The katana parry cooldown is halved.' },
-    { id: 'phoenix',   name: 'Phoenix Feather', price: 100, desc: 'Once per run, a fatal crash revives you in a burst of flame.' },
-  ];
+  // Empty for now. Re-adding an item is one entry here — its effect hook still
+  // lives where its system is (earlybird in startGame, hearts/blade/quickdraw/
+  // phoenix in the snake phase), so nothing else needs rewiring.
+  const SHOP_ITEMS = [];
   let shopOwned = {};
   try { shopOwned = JSON.parse(localStorage.getItem('flappy-shop')) || {}; } catch (e) {}
+  // Past purchases stay in localStorage so they come back with the item, but an
+  // item that isn't in the shop must not silently apply.
+  for (const id of Object.keys(shopOwned)) {
+    if (!SHOP_ITEMS.some(i => i.id === id)) delete shopOwned[id];
+  }
 
   // ---------- checkpoint (persisted) ----------
   const CHECKPOINT_SCORE = 45;   // reach this once and later runs may resume from here
@@ -397,6 +407,20 @@
   const SNAKE_SCORE = 50;
   const MAX_HP = 10;
   const SNAKE_GOLD = 5;
+
+  // A new breed joins the pool every 10 points. Once unlocked a type never
+  // leaves, and every unlocked type is equally likely to spawn — so adding a
+  // breed is one entry here plus its colours; the spawn picker needs no change.
+  const SNAKE_TYPES = [
+    { id: 'viper', from: SNAKE_SCORE, name: 'Vipers',     heads: 1, rate: 1.0,
+      body: '#8a5bb8', mark: '#5e3a8c' },
+    { id: 'twin',  from: 60,          name: 'Twin Fangs', heads: 2, rate: 2.5,
+      body: '#b8455b', mark: '#7d2438' },
+  ];
+  function snakeTypesFor(s) { return SNAKE_TYPES.filter(t => s >= t.from); }
+  function snakeType(s) {
+    return SNAKE_TYPES.find(t => t.id === (s && s.type)) || SNAKE_TYPES[0];
+  }
   let maxHp = MAX_HP;
   let snakePhase = false;
   let phoenixUsed = false;
@@ -409,12 +433,13 @@
   let bulletImmuneUntil = -10;
   let hurtFlash = 0;
   let bannerUntil = 0;
+  let bannerTitle = '', bannerSub = '';
+  let breedsSeen = 0;             // how many SNAKE_TYPES are already in the pool
 
   // ---------- background zones (score-gated scenery, cosmetic only) ----------
   // Adding a zone = one more entry here (+ an optional decor function).
   // Entries must stay sorted by `from` ascending.
-  const ZONE_DUSK_SCORE  = 46;   // bamboo forest at dusk begins here
-  const ZONE_NIGHT_SCORE = 75;   // placeholder third zone begins here
+  const ZONE_DUSK_SCORE  = 46;   // bamboo forest at dusk begins here, and runs on
   const ZONE_FADE = 1.8;         // seconds to cross-fade between zones
 
   // `decor` references functions declared much further down; that only works
@@ -437,15 +462,6 @@
       horizon: '#1a1226', hatch: 'rgba(18,12,30,0.30)',
       pipe: ['#7d9440', '#bcd074', '#5c6f2e'], pipeEdge: '#38491b', pipeNodes: 4,
       decor: drawBambooDusk,
-    },
-    {
-      id: 'night', from: ZONE_NIGHT_SCORE,   // placeholder — re-theme later
-      sky: [[0, '#070d20'], [0.6, '#131f3f'], [1, '#2b3c62']],
-      cloud: 'rgba(180,200,255,0.16)', clouds: 3,
-      sand: '#1b2338', grass: '#24405c',
-      horizon: '#0a0f1e', hatch: 'rgba(4,8,20,0.35)',
-      pipe: ['#2f5a68', '#4d8898', '#26454f'], pipeEdge: '#12242b', pipeNodes: 0,
-      decor: drawNightStars,
     },
   ];
 
@@ -512,7 +528,8 @@
     goldRun = 0;
     parryWindowUntil = -10; parryCooldownUntil = -10; swingStart = -10;
     bulletImmuneUntil = -10;
-    hurtFlash = 0; bannerUntil = 0;
+    hurtFlash = 0; bannerUntil = 0; bannerTitle = ''; bannerSub = '';
+    breedsSeen = 0;
     gameTime = 0; invulnUntil = 0;
     holding = false; perched = false;
     hangTimer = 0; hangArmed = false;
@@ -705,6 +722,13 @@
     return { x: pipe.x, y };
   }
 
+  // Where each head sits relative to the single-head anchor. Shared by the
+  // firing code and drawSnake so muzzle flashes come from the head you can see.
+  function headOffset(st, i) {
+    if (st.heads < 2) return { x: 0, y: 0 };
+    return i === 0 ? { x: 0, y: 5 } : { x: 3, y: -11 };
+  }
+
   function killSnake(pipe, sp) {
     pipe.snake.alive = false;
     const reward = shopOwned.blade ? SNAKE_GOLD * 2 : SNAKE_GOLD;
@@ -717,7 +741,7 @@
         vx: -120 + Math.random() * 240,
         vy: -160 + Math.random() * 260,
         life: 0.4 + Math.random() * 0.35,
-        c: Math.random() < 0.5 ? '#8a5bb8' : '#543847',
+        c: Math.random() < 0.5 ? snakeType(pipe.snake).body : '#543847',
       });
     }
     popup('+$' + reward, sp.x, sp.y - 20);
@@ -830,8 +854,21 @@
       snakePhase = true;
       maxHp = shopOwned.hearts ? 12 : MAX_HP;
       hp = maxHp;
+      breedsSeen = snakeTypesFor(score).length;
+      bannerTitle = 'SNAKE AMBUSH!';
+      bannerSub = 'Parry their bullets back at them!';
       bannerUntil = gameTime + 2.5;
       parryBtn.classList.remove('hidden');
+      sfx.powerup();
+    }
+
+    // a new breed joins the pool every 10 points
+    if (snakePhase && snakeTypesFor(score).length > breedsSeen) {
+      const t = SNAKE_TYPES[snakeTypesFor(score).length - 1];
+      breedsSeen = snakeTypesFor(score).length;
+      bannerTitle = t.name.toUpperCase() + '!';
+      bannerSub = t.heads > 1 ? t.heads + ' heads, and they fire far faster' : 'A new breed joins the ambush';
+      bannerUntil = gameTime + 2.5;
       sfx.powerup();
     }
 
@@ -878,7 +915,10 @@
         scored: false,
       };
       if (snakePhase && Math.random() < 0.8) {
-        pipe.snake = { side: Math.random() < 0.5 ? 'top' : 'bot', fy: Math.random(), alive: true, nextShot: 0 };
+        const pool = snakeTypesFor(score);                       // every unlocked breed, equal odds
+        const t = pool[Math.floor(Math.random() * pool.length)];
+        pipe.snake = { type: t.id, side: Math.random() < 0.5 ? 'top' : 'bot',
+                       fy: Math.random(), alive: true, nextShot: 0, head: 0 };
       }
       pipes.push(pipe);
     }
@@ -904,13 +944,17 @@
         const s = pipe.snake;
         if (!s || !s.alive) continue;
         if (pipe.x > W - 20 || pipe.x + p.pipeW < bird.x - 80) continue;  // offscreen or passed
-        if (!s.nextShot) { s.nextShot = gameTime + 0.7 + Math.random() * 0.9; continue; }
+        const st = snakeType(s);
+        if (!s.nextShot) { s.nextShot = gameTime + (0.7 + Math.random() * 0.9) / st.rate; continue; }
         if (gameTime >= s.nextShot && enemyCount < 4) {
           const sp = snakePos(pipe, p, skyH);
-          const mx = sp.x - 39, my = sp.y - 4;
+          // multi-headed breeds alternate which head fires
+          const off = headOffset(st, s.head);
+          const mx = sp.x - 39 + off.x, my = sp.y - 4 + off.y;
           const ang = Math.atan2(bird.y - my, bird.x - mx);
           bullets.push({ x: mx, y: my, vx: Math.cos(ang) * p.bulletV, vy: Math.sin(ang) * p.bulletV, friendly: false, pipe });
-          s.nextShot = gameTime + 1.6 + Math.random();
+          s.head = (s.head + 1) % st.heads;
+          s.nextShot = gameTime + (1.6 + Math.random()) / st.rate;
           sfx.shoot();
         }
       }
@@ -1079,7 +1123,7 @@
     for (const pipe of pipes) {
       if (pipe.snake && pipe.snake.alive) {
         const sp = snakePos(pipe, p, skyH);
-        drawSnake(sp.x, sp.y);
+        drawSnake(sp.x, sp.y, pipe.snake);
       }
     }
 
@@ -1105,10 +1149,14 @@
       ctx.restore();
     }
 
-    // bullets
+    // bullets — one clock for every enemy round, so they blink in unison and
+    // read as a single warning signal rather than random flicker
+    const bt = performance.now();
+    const blink = Math.sin(bt / 75) > 0;
+    const halo = 0.20 + 0.22 * (0.5 + 0.5 * Math.sin(bt / 75));
     for (const b of bullets) {
-      ctx.beginPath();
       if (b.friendly) {
+        ctx.beginPath();
         ctx.fillStyle = '#8ef1ff';
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 1.5;
@@ -1116,10 +1164,15 @@
         ctx.fill();
         ctx.stroke();
       } else {
-        ctx.fillStyle = '#37273f';
-        ctx.strokeStyle = '#e86101';
-        ctx.lineWidth = 2;
-        ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,40,40,' + halo.toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.fillStyle = blink ? '#ff2020' : '#fff0f0';
+        ctx.strokeStyle = blink ? '#5c0000' : '#ff2020';
+        ctx.lineWidth = 2.5;
+        ctx.arc(b.x, b.y, 6.5, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       }
@@ -1226,13 +1279,13 @@
       ctx.lineWidth = 6;
       ctx.strokeStyle = '#543847';
       ctx.fillStyle = '#ffcf3f';
-      ctx.strokeText('SNAKE AMBUSH!', W / 2, H * 0.3);
-      ctx.fillText('SNAKE AMBUSH!', W / 2, H * 0.3);
+      ctx.strokeText(bannerTitle, W / 2, H * 0.3);
+      ctx.fillText(bannerTitle, W / 2, H * 0.3);
       ctx.font = `700 ${Math.max(15, H * 0.022)}px -apple-system, sans-serif`;
       ctx.lineWidth = 4;
       ctx.fillStyle = '#fff';
-      ctx.strokeText('Parry their bullets back at them!', W / 2, H * 0.3 + Math.max(34, H * 0.05));
-      ctx.fillText('Parry their bullets back at them!', W / 2, H * 0.3 + Math.max(34, H * 0.05));
+      ctx.strokeText(bannerSub, W / 2, H * 0.3 + Math.max(34, H * 0.05));
+      ctx.fillText(bannerSub, W / 2, H * 0.3 + Math.max(34, H * 0.05));
     }
   }
 
@@ -1415,26 +1468,6 @@
     bambooLayer(skyH, bgScroll, true);           // near grove
   }
 
-  // placeholder decor for the third zone — re-theme later
-  function drawNightStars(pal, p, skyH) {
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    for (let i = 0; i < 14; i++) {
-      const sx = ((zhash(i) * 1.7) % 1) * W;
-      const sy = zhash(i + 41) * skyH * 0.6;
-      const ss = 1 + zhash(i + 83) * 1.6;
-      ctx.fillRect(sx, sy, ss, ss);
-    }
-    const mx = W * 0.78, my = skyH * 0.22, mr = Math.max(16, skyH * 0.055);
-    ctx.fillStyle = '#e8eeff';
-    ctx.beginPath();
-    ctx.arc(mx, my, mr, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = pal.sky[0][1];
-    ctx.beginPath();
-    ctx.arc(mx + mr * 0.42, my - mr * 0.22, mr * 0.9, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
   function mixHex(a, b, t) {
     const ai = parseInt(a.slice(1), 16), bi = parseInt(b.slice(1), 16);
     const r = Math.round(((ai >> 16) & 255) + ((((bi >> 16) & 255) - ((ai >> 16) & 255)) * t));
@@ -1500,81 +1533,111 @@
     }
   }
 
-  function drawSnake(x, y) {
-    const ph = performance.now() / 250;
+  // one head: ellipse, slit-pupil eye, flicking tongue, and the gun below it
+  function drawSnakeHead(hx, hy, st, ph, scale) {
     ctx.save();
-    ctx.translate(x, y);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    // rearing S-curved body from the pipe edge up to the head, slithering gently
-    const N = 14;
-    const pts = [];
-    for (let i = 0; i <= N; i++) {
-      const t = i / N;
-      pts.push({
-        x: 12 - t * 34,
-        y: 20 - t * 32 + Math.sin(t * 5 + ph) * 4.5 * (1 - t * 0.6),
-      });
+    ctx.translate(hx, hy);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = st.body;
+    ctx.strokeStyle = '#543847';
+    ctx.lineWidth = 2 / scale;
+    ctx.beginPath();
+    ctx.ellipse(-4, 0, 10, 6.5, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#ffd34e';
+    ctx.beginPath();
+    ctx.arc(-7, -2, 2.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#222';
+    ctx.fillRect(-7.6, -4, 1.2, 4.5);
+    if (Math.sin(ph * 1.7) > 0.2) {
+      ctx.strokeStyle = '#e8603c';
+      ctx.lineWidth = 1.5 / scale;
+      ctx.beginPath();
+      ctx.moveTo(-14, 1);
+      ctx.lineTo(-20, 1);
+      ctx.moveTo(-20, 1);
+      ctx.lineTo(-23, -1.5);
+      ctx.moveTo(-20, 1);
+      ctx.lineTo(-23, 3.5);
+      ctx.stroke();
     }
-    // dark outline pass, then body pass — width tapers from thin tail to thick neck
+    ctx.fillStyle = '#4a4a55';
+    ctx.strokeStyle = '#2b2b33';
+    ctx.lineWidth = 1.5 / scale;
+    ctx.fillRect(-10, 6, 15, 5);
+    ctx.strokeRect(-10, 6, 15, 5);
+    ctx.fillRect(-17, 7, 8, 3);
+    ctx.strokeRect(-17, 7, 8, 3);
+    ctx.restore();
+  }
+
+  // dark outline pass then body pass, width from widthAt(t)
+  function strokeChain(pts, st, widthAt) {
     for (let pass = 0; pass < 2; pass++) {
-      for (let i = 0; i < N; i++) {
-        const t = i / N;
-        const wBody = 3 + 7 * Math.sin(Math.min(1, t * 1.35) * Math.PI * 0.62);
-        ctx.strokeStyle = pass === 0 ? '#543847' : '#8a5bb8';
-        ctx.lineWidth = pass === 0 ? wBody + 2.5 : wBody;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const w = widthAt(i / (pts.length - 1));
+        ctx.strokeStyle = pass === 0 ? '#543847' : st.body;
+        ctx.lineWidth = pass === 0 ? w + 2.5 : w;
         ctx.beginPath();
         ctx.moveTo(pts[i].x, pts[i].y);
         ctx.lineTo(pts[i + 1].x, pts[i + 1].y);
         ctx.stroke();
       }
     }
-    // diamond back markings
-    ctx.fillStyle = '#5e3a8c';
-    for (let i = 4; i < N - 1; i += 3) {
+  }
+
+  function drawSnake(x, y, s) {
+    const st = snakeType(s);
+    const ph = performance.now() / 250;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // rearing S-curved body from the pipe edge up toward the head(s)
+    const N = 14;
+    const fork = st.heads > 1 ? 9 : N;      // shared spine ends here, necks branch off
+    const spine = [];
+    for (let i = 0; i <= fork; i++) {
+      const t = i / N;
+      spine.push({
+        x: 12 - t * 34,
+        y: 20 - t * 32 + Math.sin(t * 5 + ph) * 4.5 * (1 - t * 0.6),
+      });
+    }
+    const taper = t => 3 + 7 * Math.sin(Math.min(1, (t * fork / N) * 1.35) * Math.PI * 0.62);
+    strokeChain(spine, st, taper);
+
+    // diamond back markings along the shared spine
+    ctx.fillStyle = st.mark;
+    for (let i = 4; i < spine.length - 1; i += 3) {
       ctx.beginPath();
-      ctx.arc(pts[i].x, pts[i].y, 2, 0, Math.PI * 2);
+      ctx.arc(spine[i].x, spine[i].y, 2, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    const hx = pts[N].x, hy = pts[N].y;
-    // head
-    ctx.fillStyle = '#8a5bb8';
-    ctx.strokeStyle = '#543847';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.ellipse(hx - 4, hy, 10, 6.5, -0.15, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    // slit-pupil eye
-    ctx.fillStyle = '#ffd34e';
-    ctx.beginPath();
-    ctx.arc(hx - 7, hy - 2, 2.6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#222';
-    ctx.fillRect(hx - 7.6, hy - 4, 1.2, 4.5);
-    // flicking forked tongue
-    if (Math.sin(ph * 1.7) > 0.2) {
-      ctx.strokeStyle = '#e8603c';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(hx - 14, hy + 1);
-      ctx.lineTo(hx - 20, hy + 1);
-      ctx.moveTo(hx - 20, hy + 1);
-      ctx.lineTo(hx - 23, hy - 1.5);
-      ctx.moveTo(hx - 20, hy + 1);
-      ctx.lineTo(hx - 23, hy + 3.5);
-      ctx.stroke();
+    // one neck per head, each ending at that head's anchor
+    const base = { x: 12 - 34, y: 20 - 32 + Math.sin(5 + ph) * 4.5 * 0.4 };
+    const neckW = st.heads > 1 ? 0.72 : 1;
+    const scale = st.heads > 1 ? 0.86 : 1;
+    for (let h = 0; h < st.heads; h++) {
+      const off = headOffset(st, h);
+      const tip = { x: base.x + off.x, y: base.y + off.y };
+      const a0 = spine[spine.length - 1];
+      const M = N - fork || 1;
+      const neck = [];
+      for (let i = 0; i <= M; i++) {
+        const t = i / M;
+        neck.push({
+          x: a0.x + (tip.x - a0.x) * t,
+          y: a0.y + (tip.y - a0.y) * t + Math.sin(t * 3 + ph + h * 2) * 2.2 * (1 - t),
+        });
+      }
+      if (M > 1) strokeChain(neck, st, () => 9.2 * neckW);
+      drawSnakeHead(tip.x, tip.y, st, ph + h * 1.3, scale);
     }
-    // gun held below the head
-    ctx.fillStyle = '#4a4a55';
-    ctx.strokeStyle = '#2b2b33';
-    ctx.lineWidth = 1.5;
-    ctx.fillRect(hx - 10, hy + 6, 15, 5);
-    ctx.strokeRect(hx - 10, hy + 6, 15, 5);
-    ctx.fillRect(hx - 17, hy + 7, 8, 3);
-    ctx.strokeRect(hx - 17, hy + 7, 8, 3);
     ctx.restore();
   }
 
@@ -1788,6 +1851,10 @@
   let shopOpen = false, shopMsgTimer = null;
   function renderShop() {
     shopWalletEl.textContent = goldTotal;
+    if (!SHOP_ITEMS.length) {
+      shopItemsEl.innerHTML = '<div class="shop-empty">Nothing in stock yet.<br>Keep banking gold.</div>';
+      return;
+    }
     shopItemsEl.innerHTML = SHOP_ITEMS.map(item => {
       const owned = shopOwned[item.id];
       return '<div class="shop-item">' +

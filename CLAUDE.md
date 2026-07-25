@@ -19,21 +19,32 @@ Three progression phases, in order:
 2. **Checkpoint (45)** — reaching 45 once sets a persistent flag. Later runs
    resume at 45 with all 9 upgrades via `applyCheckpoint()`; Start/Restart
    relabel themselves, and a **New Run** button forces a fresh 0-start.
-3. **Snake ambush (50+)** — `SNAKE_SCORE`. Bird gains HP (`maxHp`, 10 or 12
-   with the shop item) and a katana. Armed snakes cling to pipe sides and
-   fire aimed bullets (1 damage). The PARRY button (or left click in desktop
-   mode, or P/Enter) opens a 0.16s window that flips a bullet to `friendly`,
-   which then homes back and kills its snake for gold.
+3. **Snake ambush (50+)** — `SNAKE_SCORE`. Bird gains HP (`maxHp`) and a
+   katana. Armed snakes cling to pipe sides and fire aimed bullets (1 damage).
+   The PARRY button (or left click in desktop mode, or P/Enter) opens a 0.16s
+   window that flips a bullet to `friendly`, which then homes back and kills
+   its snake for gold. A new breed joins the pool every 10 points via
+   `SNAKE_TYPES` — vipers at 50, two-headed Twin Fangs at 60 firing 2.5× as
+   often. Every unlocked breed is equally likely to spawn, so adding one is a
+   single table entry: `heads` drives both the fork in `drawSnake` and the
+   alternating muzzle in the firing block (both read `headOffset()`, which is
+   why they stay in sync), and `rate` divides the shot interval.
 
-Between runs: **gold** (`flappy-gold`) buys permanent `SHOP_ITEMS` from the
-Shop, reachable from the start and game-over menus.
+Between runs: **gold** (`flappy-gold`) accumulates. `SHOP_ITEMS` is currently
+**empty** — the Shop still opens from the start and game-over menus and shows an
+empty state. Each item's effect hook still lives where its system is
+(`shopOwned.earlybird` in `startGame`, `hearts`/`blade`/`quickdraw`/`phoenix` in
+the snake phase), so restoring one is a single table entry. `shopOwned` is
+pruned at load to ids present in `SHOP_ITEMS`, so a past purchase can't silently
+apply while its item is out of the shop — but the saved JSON is never rewritten,
+so purchases come back with the item.
 
 Cutting across all of that: **background zones**, a purely cosmetic layer keyed
 off score. `ZONES` is a table of `{ from, sky, cloud, sand, grass, horizon,
-hatch, pipe, pipeEdge, pipeNodes, decor }` — day (0–45), bamboo dusk
-(`ZONE_DUSK_SCORE`, 46), and a night placeholder (`ZONE_NIGHT_SCORE`, 75).
-Crossing a threshold cross-fades over `ZONE_FADE` seconds. Zone 0 reproduces
-the original look exactly, so nothing below 46 changed.
+hatch, pipe, pipeEdge, pipeNodes, decor }` — day (0–45) and bamboo dusk
+(`ZONE_DUSK_SCORE`, 46), which currently runs to the end. Crossing a threshold
+cross-fades over `ZONE_FADE` seconds. Zone 0 reproduces the original look
+exactly, so nothing below 46 changed.
 
 ## Key conventions
 

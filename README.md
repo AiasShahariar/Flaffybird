@@ -13,12 +13,14 @@ A roguelike Flappy Bird — one self-contained HTML file, no dependencies, no bu
   with every upgrade collected. **New Run** starts a fresh climb.
 - **46+** — the world changes. The sky fades into a bamboo forest at dusk,
   with silhouetted groves scrolling past, hanging paper lanterns and a setting
-  sun. Pipes turn to bamboo. At **75** it shifts again, into night.
+  sun. Pipes turn to bamboo, and it stays that way from here on.
 - **50+** — snake ambush. You get 10 HP and a katana; armed snakes on the
   pipes shoot at you for 1 damage each. Time the **PARRY** button to deflect
-  a bullet back and kill the snake for $5.
+  a bullet back and kill the snake for $5. A new breed joins every 10 points:
+  **vipers** at 50, two-headed **Twin Fangs** at 60 that fire 2.5x as often.
+  Every breed you've unlocked is equally likely to show up.
 
-Gold carries over between runs and buys permanent upgrades in the **Shop**.
+Gold carries over between runs. The **Shop** is empty for now.
 **Settings** lets you drag the PARRY button anywhere and switch on desktop
 controls (space to flap, left click to parry).
 
@@ -33,10 +35,6 @@ controls (space to flap, left click to parry).
 - 🌙 **Moon Feathers** — low gravity, feather-fall
 - 🐾 **Perch Claws** — land on pipe caps and perch
 - 🪁 **Kite Tail** — hang in the air at each flap's apex
-
-## Shop
-
-Early Bird ($30) · Extra Hearts ($50) · Golden Blade ($60) · Quickdraw ($80) · Phoenix Feather ($100)
 
 ## Development
 
