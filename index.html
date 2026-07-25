@@ -260,6 +260,10 @@
       <button id="resetPosBtn" type="button">Reset position</button>
       <button id="settingsDoneBtn" type="button">Done</button>
     </div>
+    <div class="set-hint" style="margin-top: 16px;">Desktop controls — space flaps, left click parries. The PARRY button still works either way.</div>
+    <div class="set-row">
+      <button id="desktopToggleBtn" type="button">Desktop controls: Off</button>
+    </div>
     <div class="set-row" style="margin-top: 12px;">
       <button id="devModeBtn" type="button">Dev Mode</button>
     </div>
@@ -1467,6 +1471,7 @@
   const resetPosBtn = document.getElementById('resetPosBtn');
   const settingsDoneBtn = document.getElementById('settingsDoneBtn');
   const devModeBtn = document.getElementById('devModeBtn');
+  const desktopToggleBtn = document.getElementById('desktopToggleBtn');
   const devPanel = document.getElementById('devPanel');
   const dev45Btn = document.getElementById('dev45Btn');
   const shopBtn = document.getElementById('shopBtn');
@@ -1492,6 +1497,15 @@
     parryBtn.style.top = parryPos.y + '%';
   }
   applyParryPos();
+
+  // desktop control scheme: space = flap, left click = parry (persisted)
+  const DESKTOP_KEY = 'flappy-desktop';
+  let desktopControls = false;
+  try { desktopControls = localStorage.getItem(DESKTOP_KEY) === '1'; } catch (e) {}
+  function updateDesktopLabel() {
+    desktopToggleBtn.textContent = 'Desktop controls: ' + (desktopControls ? 'On' : 'Off');
+  }
+  updateDesktopLabel();
 
   let settingsOpen = false, draggingParry = false;
   function openSettings() {
@@ -1611,6 +1625,11 @@
       else if (t === settingsDoneBtn) closeSettings();
       else if (t === devModeBtn) devPanel.classList.toggle('hidden');
       else if (t === dev45Btn) { ensureAudio(); devStart45(); }
+      else if (t === desktopToggleBtn) {
+        desktopControls = !desktopControls;
+        try { localStorage.setItem(DESKTOP_KEY, desktopControls ? '1' : '0'); } catch (e2) {}
+        updateDesktopLabel();
+      }
       return;
     }
     if (shopOpen) {
@@ -1631,6 +1650,9 @@
     if (t === menuBtn) { toStartMenu(); return; }
     if (t === startSettingsBtn || t === goSettingsBtn) { openSettings(); return; }
     if (state === START) return;   // starting requires the Start button now
+    // Desktop scheme: space flaps, left click parries (and does nothing until
+    // the katana exists, since parry() bails outside the snake phase)
+    if (desktopControls) { ensureAudio(); parry(); return; }
     holding = true;
     primaryAction();
   });
