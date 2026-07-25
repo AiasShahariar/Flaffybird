@@ -11,6 +11,9 @@ A roguelike Flappy Bird — one self-contained HTML file, no dependencies, no bu
   pipe away.
 - **45** — checkpoint. Once you've reached it, Start and Restart resume here
   with every upgrade collected. **New Run** starts a fresh climb.
+- **46+** — the world changes. The sky fades into a bamboo forest at dusk,
+  with silhouetted groves scrolling past, hanging paper lanterns and a setting
+  sun. Pipes turn to bamboo. At **75** it shifts again, into night.
 - **50+** — snake ambush. You get 10 HP and a katana; armed snakes on the
   pipes shoot at you for 1 damage each. Time the **PARRY** button to deflect
   a bullet back and kill the snake for $5.

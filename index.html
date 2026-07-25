@@ -410,6 +410,45 @@
   let hurtFlash = 0;
   let bannerUntil = 0;
 
+  // ---------- background zones (score-gated scenery, cosmetic only) ----------
+  // Adding a zone = one more entry here (+ an optional decor function).
+  // Entries must stay sorted by `from` ascending.
+  const ZONE_DUSK_SCORE  = 46;   // bamboo forest at dusk begins here
+  const ZONE_NIGHT_SCORE = 75;   // placeholder third zone begins here
+  const ZONE_FADE = 1.8;         // seconds to cross-fade between zones
+
+  // `decor` references functions declared much further down; that only works
+  // because `function` declarations hoist. Do not convert them to const/arrow.
+  const ZONES = [
+    {
+      id: 'day', from: 0,
+      sky: [[0, '#71c5cf'], [1, '#b3e5ee']],
+      cloud: 'rgba(255,255,255,0.75)', clouds: 4,
+      sand: '#ded895', grass: '#9bd85a',
+      horizon: '#543847', hatch: 'rgba(84,56,71,0.18)',
+      pipe: ['#5eb716', '#9ce659', '#4e9a13'], pipeEdge: '#37540f', pipeNodes: 0,
+      decor: null,
+    },
+    {
+      id: 'dusk', from: ZONE_DUSK_SCORE,
+      sky: [[0, '#1e1a3c'], [0.42, '#553067'], [0.76, '#c05d5c'], [1, '#f2a35c']],
+      cloud: 'rgba(255,178,140,0.20)', clouds: 3,
+      sand: '#38304c', grass: '#3f5b33',
+      horizon: '#1a1226', hatch: 'rgba(18,12,30,0.30)',
+      pipe: ['#7d9440', '#bcd074', '#5c6f2e'], pipeEdge: '#38491b', pipeNodes: 4,
+      decor: drawBambooDusk,
+    },
+    {
+      id: 'night', from: ZONE_NIGHT_SCORE,   // placeholder — re-theme later
+      sky: [[0, '#070d20'], [0.6, '#131f3f'], [1, '#2b3c62']],
+      cloud: 'rgba(180,200,255,0.16)', clouds: 3,
+      sand: '#1b2338', grass: '#24405c',
+      horizon: '#0a0f1e', hatch: 'rgba(4,8,20,0.35)',
+      pipe: ['#2f5a68', '#4d8898', '#26454f'], pipeEdge: '#12242b', pipeNodes: 0,
+      decor: drawNightStars,
+    },
+  ];
+
   // ---------- game state ----------
   const START = 0, PLAYING = 1, GAMEOVER = 2, CHOICE = 3;
   let state = START;
@@ -420,6 +459,11 @@
   const bird = { x: 0, y: 0, prevY: 0, vy: 0, r: 0, angle: 0, wing: 0 };
   const pipes = [];   // { x, gapC (fraction of playable height), scored, snake? }
   let groundOffset = 0;
+  let bgScroll = 0;                            // parallax accumulator for zone decor.
+                                               // Deliberately unbounded: decor identity is
+                                               // floor(offset/step), so wrapping it would make
+                                               // stalks morph in place.
+  let zoneCur = 0, zonePrev = 0, zoneFade = 1; // zoneFade 0..1; 1 = settled on zoneCur
   let diedAt = 0;
   let gameTime = 0;        // accumulated play time (pauses stop it)
   let invulnUntil = 0;     // gameTime until which pipe hits are ignored
@@ -481,6 +525,8 @@
     bird.r = p.birdR;
     choiceScreen.classList.add('hidden');
     parryBtn.classList.add('hidden');
+    bgScroll = 0;
+    syncZoneInstant();
   }
 
   function startGame(atCheckpoint) {
@@ -507,6 +553,7 @@
     peckReady = true; peckCharge = 0;
     rewindReady = true;
     choiceScreen.classList.add('hidden');      // Early Bird's chooser is moot with everything owned
+    syncZoneInstant();                         // resetGame ran at score 0; re-derive now that score is 45
     state = PLAYING;
   }
 
@@ -623,6 +670,7 @@
     perched = false;
     invulnUntil = gameTime + 1.2;
     rewindFlash = 0.6;
+    syncZoneInstant();   // score just moved backwards; snap under the white rewind flash
     sfx.rewind();
   }
 
@@ -637,7 +685,7 @@
         vx: 60 + Math.random() * 240,
         vy: -180 + Math.random() * 360,
         life: 0.5 + Math.random() * 0.4,
-        c: Math.random() < 0.5 ? '#5eb716' : '#37540f',
+        c: Math.random() < 0.5 ? ZONES[zoneCur].pipe[0] : ZONES[zoneCur].pipeEdge,
       });
     }
   }
@@ -708,6 +756,32 @@
     sfx.swing();
   }
 
+  // ---------- background zones ----------
+  function zoneForScore(s) {
+    let z = 0;
+    for (let i = 1; i < ZONES.length; i++) if (s >= ZONES[i].from) z = i;
+    return z;
+  }
+
+  // snap with no fade — run start, checkpoint resume, rewind
+  function syncZoneInstant() {
+    zoneCur = zonePrev = zoneForScore(score);
+    zoneFade = 1;
+  }
+
+  // Always called with RAW dt (never the Falcon Focus dt): a background fade is
+  // presentational and should take ZONE_FADE real seconds regardless of slow-mo.
+  function updateZone(dt) {
+    const want = zoneForScore(score);
+    if (want !== zoneCur) { zonePrev = zoneCur; zoneCur = want; zoneFade = 0; }
+    if (zoneFade < 1) zoneFade = Math.min(1, zoneFade + dt / ZONE_FADE);
+  }
+
+  // smoothstep — 0 at the cut, 1 when settled
+  function zoneT() {
+    return zoneFade >= 1 ? 1 : zoneFade * zoneFade * (3 - 2 * zoneFade);
+  }
+
   // ---------- update ----------
   function update(dt) {
     const p = params();
@@ -715,8 +789,14 @@
 
     if (state === CHOICE) return;   // world is frozen behind the upgrade cards
 
+    // Raw dt, and above the state !== PLAYING branch on purpose: a fade in flight
+    // must finish during GAMEOVER, or dying just past a boundary strands the sky
+    // half-faded under the panel.
+    updateZone(dt);
+
     if (state !== PLAYING) {
       groundOffset = (groundOffset + p.speed * dt) % 48;
+      bgScroll += p.speed * 0.5 * dt;
       if (state === START) {
         // idle hover on the start screen
         bird.x = W * 0.28;
@@ -761,6 +841,7 @@
     if (focusActive) dt *= 0.55;
 
     groundOffset = (groundOffset + p.speed * dt) % 48;
+    bgScroll += p.speed * 0.5 * dt;   // world motion, so it slows with the ground
 
     // bird physics
     bird.prevY = bird.y;
@@ -988,25 +1069,8 @@
     const p = params();
     const skyH = H - p.groundH;
 
-    // sky
-    const sky = ctx.createLinearGradient(0, 0, 0, skyH);
-    sky.addColorStop(0, '#71c5cf');
-    sky.addColorStop(1, '#b3e5ee');
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, W, skyH);
-
-    // distant clouds (fixed, cheap)
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    for (let i = 0; i < 4; i++) {
-      const cx = ((i * 0.27 + 0.1) * W + W) % W;
-      const cy = skyH * (0.18 + (i % 3) * 0.16);
-      const cr = 16 + (i % 2) * 10;
-      ctx.beginPath();
-      ctx.arc(cx, cy, cr, 0, Math.PI * 2);
-      ctx.arc(cx + cr * 0.9, cy + 4, cr * 0.7, 0, Math.PI * 2);
-      ctx.arc(cx - cr * 0.9, cy + 5, cr * 0.6, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    // sky + zone decor + clouds (cross-faded between zones)
+    withZone(drawSkyLayer, p, skyH);
 
     // pipes
     for (const pipe of pipes) drawPipe(pipe, p, skyH);
@@ -1069,26 +1133,8 @@
     }
     ctx.globalAlpha = 1;
 
-    // ground
-    ctx.fillStyle = '#ded895';
-    ctx.fillRect(0, skyH, W, p.groundH);
-    ctx.fillStyle = '#9bd85a';
-    ctx.fillRect(0, skyH, W, Math.min(14, p.groundH * 0.25));
-    ctx.strokeStyle = '#543847';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, skyH + 1);
-    ctx.lineTo(W, skyH + 1);
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(84,56,71,0.18)';
-    for (let x = -groundOffset; x < W; x += 48) {
-      ctx.beginPath();
-      ctx.moveTo(x, skyH + p.groundH);
-      ctx.lineTo(x + 24, skyH + Math.min(14, p.groundH * 0.25));
-      ctx.lineTo(x + 34, skyH + Math.min(14, p.groundH * 0.25));
-      ctx.lineTo(x + 10, skyH + p.groundH);
-      ctx.fill();
-    }
+    // ground (cross-faded between zones)
+    withZone(drawGroundLayer, p, skyH);
 
     drawBird();
 
@@ -1190,6 +1236,226 @@
     }
   }
 
+  // ---------- zone background rendering ----------
+  function drawSkyLayer(pal, p, skyH) {
+    const sky = ctx.createLinearGradient(0, 0, 0, skyH);
+    for (const stop of pal.sky) sky.addColorStop(stop[0], stop[1]);
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, skyH);
+
+    if (pal.decor) pal.decor(pal, p, skyH);
+
+    // distant clouds (fixed, cheap)
+    ctx.fillStyle = pal.cloud;
+    for (let i = 0; i < pal.clouds; i++) {
+      const cx = ((i * 0.27 + 0.1) * W + W) % W;
+      const cy = skyH * (0.18 + (i % 3) * 0.16);
+      const cr = 16 + (i % 2) * 10;
+      ctx.beginPath();
+      ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+      ctx.arc(cx + cr * 0.9, cy + 4, cr * 0.7, 0, Math.PI * 2);
+      ctx.arc(cx - cr * 0.9, cy + 5, cr * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawGroundLayer(pal, p, skyH) {
+    const lipH = Math.min(14, p.groundH * 0.25);
+    ctx.fillStyle = pal.sand;
+    ctx.fillRect(0, skyH, W, p.groundH);
+    ctx.fillStyle = pal.grass;
+    ctx.fillRect(0, skyH, W, lipH);
+    ctx.strokeStyle = pal.horizon;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, skyH + 1);
+    ctx.lineTo(W, skyH + 1);
+    ctx.stroke();
+    ctx.fillStyle = pal.hatch;
+    for (let x = -groundOffset; x < W; x += 48) {
+      ctx.beginPath();
+      ctx.moveTo(x, skyH + p.groundH);
+      ctx.lineTo(x + 24, skyH + lipH);
+      ctx.lineTo(x + 34, skyH + lipH);
+      ctx.lineTo(x + 10, skyH + p.groundH);
+      ctx.fill();
+    }
+  }
+
+  // outgoing palette at full opacity, incoming layered on top at alpha t.
+  // The save/restore is required — leaking a fractional alpha would dim the
+  // bird and the HUD drawn after this.
+  function withZone(fn, p, skyH) {
+    const t = zoneT();
+    if (t < 1) fn(ZONES[zonePrev], p, skyH);
+    ctx.save();
+    if (t < 1) ctx.globalAlpha = t;
+    fn(ZONES[zoneCur], p, skyH);
+    ctx.restore();
+  }
+
+  // deterministic 0..1 from an integer index, so each stalk keeps its identity
+  // as it scrolls instead of shimmering
+  function zhash(i) {
+    const s = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  }
+
+  // horizontal spacing of the grove, viewport-scaled (never a hardcoded pixel count)
+  function bgStep() { return Math.max(64, Math.min(W, 520) * 0.24); }
+
+  // one tapered leaf blade from (bx,by) at angle a
+  function leafBlade(bx, by, a, len) {
+    const cx = Math.cos(a), sy = Math.sin(a);
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.quadraticCurveTo(bx + cx * len * 0.5 - sy * len * 0.20, by + sy * len * 0.5 + cx * len * 0.20,
+                         bx + cx * len,                          by + sy * len);
+    ctx.quadraticCurveTo(bx + cx * len * 0.5 + sy * len * 0.10, by + sy * len * 0.5 - cx * len * 0.10,
+                         bx, by);
+    ctx.fill();
+  }
+
+  function bambooLayer(skyH, offset, near) {
+    const step  = bgStep() * (near ? 1.0 : 1.5);
+    const first = Math.floor(offset / step);
+    const n     = Math.ceil(W / step) + 2;
+    const now   = performance.now();
+    for (let k = 0; k < n; k++) {
+      const idx = first + k;
+      const x   = idx * step - offset;
+      const h1  = zhash(idx), h2 = zhash(idx + 97), h3 = zhash(idx + 211);
+      const w   = step * (near ? 0.20 : 0.115) * (0.85 + h1 * 0.4);   // thick enough to read as bamboo
+      const top = skyH * (near ? 0.06 + h2 * 0.30 : 0.34 + h2 * 0.24);
+      const tw  = w * 0.62;                                            // tapered top width
+      const segs = near ? 6 : 4;
+      const seg = (skyH - top) / segs;
+      const wAt = f => w + (tw - w) * f;                                // width at 0=base .. 1=top
+
+      ctx.fillStyle = near ? '#1f3524' : '#3b3a5e';
+      ctx.beginPath();                                                 // tapered culm
+      ctx.moveTo(x - w / 2, skyH);
+      ctx.lineTo(x + w / 2, skyH);
+      ctx.lineTo(x + tw / 2, top);
+      ctx.lineTo(x - tw / 2, top);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = near ? '#16281b' : '#332f52';
+      for (let s = 1; s < segs; s++) {                                  // node bands, slightly proud
+        const f = s / segs, y = skyH - (skyH - top) * f, ww = wAt(f);
+        ctx.fillRect(x - ww * 0.62, y, ww * 1.24, Math.max(2, w * 0.13));
+      }
+
+      // leaf cluster fanning up from the crown, plus one lower sprig
+      ctx.fillStyle = near ? '#20452a' : '#413f66';
+      const blades = near ? 5 : 3;
+      for (let s = 0; s < blades; s++) {
+        const a = -Math.PI * (0.18 + 0.64 * (s / (blades - 1))) + (zhash(idx * 7 + s) - 0.5) * 0.35;
+        leafBlade(x, top + seg * 0.10, a, step * (0.34 + zhash(idx * 13 + s) * 0.26));
+      }
+      if (near) {
+        const ly = top + seg * (1.1 + h3 * 0.5);
+        for (let s = 0; s < 2; s++) {
+          const a = (s ? -Math.PI * 0.80 : -Math.PI * 0.20) + (h3 - 0.5) * 0.3;
+          leafBlade(x, ly, a, step * 0.26);
+        }
+      }
+
+      // paper lantern strung between every third near stalk
+      if (near && idx % 3 === 0) {
+        const lr   = Math.max(9, step * 0.155);
+        const sway = Math.sin(now / 1100 + idx) * step * 0.035;
+        const lx   = x + step * 0.42 + sway;
+        const lyy  = top + seg * 1.5;
+        ctx.strokeStyle = 'rgba(20,14,28,0.85)';
+        ctx.lineWidth = Math.max(1.5, w * 0.09);
+        ctx.beginPath();
+        ctx.moveTo(x, top + seg * 0.75);
+        ctx.lineTo(lx, lyy - lr * 1.25);
+        ctx.stroke();
+        const gl = ctx.createRadialGradient(lx, lyy, lr * 0.5, lx, lyy, lr * 3);
+        gl.addColorStop(0, 'rgba(255,170,90,0.38)');
+        gl.addColorStop(1, 'rgba(255,150,80,0)');
+        ctx.fillStyle = gl;
+        ctx.beginPath();
+        ctx.arc(lx, lyy, lr * 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffb85e';                                     // body
+        ctx.beginPath();
+        ctx.ellipse(lx, lyy, lr, lr * 1.15, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(180,70,30,0.45)';                        // ribs
+        ctx.fillRect(lx - lr, lyy - lr * 0.34, lr * 2, Math.max(1, lr * 0.10));
+        ctx.fillRect(lx - lr, lyy + lr * 0.24, lr * 2, Math.max(1, lr * 0.10));
+        ctx.fillStyle = '#6d2a12';                                     // caps
+        ctx.fillRect(lx - lr * 0.42, lyy - lr * 1.28, lr * 0.84, lr * 0.2);
+        ctx.fillRect(lx - lr * 0.42, lyy + lr * 1.08, lr * 0.84, lr * 0.2);
+      }
+    }
+  }
+
+  function drawBambooDusk(pal, p, skyH) {
+    // setting sun, low and to the right — the stalks silhouette against it
+    const cx = W * 0.74, cy = skyH * 0.80, r = Math.max(20, skyH * 0.070);
+    const g = ctx.createRadialGradient(cx, cy, r * 0.2, cx, cy, r * 4.0);
+    g.addColorStop(0,    'rgba(255,206,140,0.60)');
+    g.addColorStop(0.35, 'rgba(245,140,95,0.26)');
+    g.addColorStop(1,    'rgba(240,120,90,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 4.0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffe0ad';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    bambooLayer(skyH, bgScroll * 0.42, false);   // far grove, slower
+    bambooLayer(skyH, bgScroll, true);           // near grove
+  }
+
+  // placeholder decor for the third zone — re-theme later
+  function drawNightStars(pal, p, skyH) {
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    for (let i = 0; i < 14; i++) {
+      const sx = ((zhash(i) * 1.7) % 1) * W;
+      const sy = zhash(i + 41) * skyH * 0.6;
+      const ss = 1 + zhash(i + 83) * 1.6;
+      ctx.fillRect(sx, sy, ss, ss);
+    }
+    const mx = W * 0.78, my = skyH * 0.22, mr = Math.max(16, skyH * 0.055);
+    ctx.fillStyle = '#e8eeff';
+    ctx.beginPath();
+    ctx.arc(mx, my, mr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = pal.sky[0][1];
+    ctx.beginPath();
+    ctx.arc(mx + mr * 0.42, my - mr * 0.22, mr * 0.9, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function mixHex(a, b, t) {
+    const ai = parseInt(a.slice(1), 16), bi = parseInt(b.slice(1), 16);
+    const r = Math.round(((ai >> 16) & 255) + ((((bi >> 16) & 255) - ((ai >> 16) & 255)) * t));
+    const g = Math.round(((ai >> 8) & 255)  + ((((bi >> 8) & 255)  - ((ai >> 8) & 255))  * t));
+    const l = Math.round((ai & 255)         + (((bi & 255)         - (ai & 255))         * t));
+    return '#' + ((1 << 24) | (r << 16) | (g << 8) | l).toString(16).slice(1);
+  }
+
+  // Pipe colours are lerped rather than alpha-layered: drawPipe strokes its
+  // rects, so drawing both palettes on top of each other would double-darken
+  // every outline for the whole fade.
+  function zonePipeStyle() {
+    const t = zoneT(), a = ZONES[zonePrev], b = ZONES[zoneCur];
+    if (t >= 1) return { fill: b.pipe, edge: b.pipeEdge, nodes: b.pipeNodes };
+    return {
+      fill: [mixHex(a.pipe[0], b.pipe[0], t), mixHex(a.pipe[1], b.pipe[1], t), mixHex(a.pipe[2], b.pipe[2], t)],
+      edge: mixHex(a.pipeEdge, b.pipeEdge, t),
+      nodes: t > 0.5 ? b.pipeNodes : a.pipeNodes,
+    };
+  }
+
   function drawPipe(pipe, p, skyH) {
     const gapY = pipe.gapC * skyH;
     const topH = gapY - p.gap / 2;
@@ -1197,12 +1463,13 @@
     const lip = 10;
     const lipH = Math.min(26, p.pipeW * 0.42);
 
+    const ps = zonePipeStyle();
     const grad = ctx.createLinearGradient(pipe.x, 0, pipe.x + p.pipeW, 0);
-    grad.addColorStop(0, '#5eb716');
-    grad.addColorStop(0.5, '#9ce659');
-    grad.addColorStop(1, '#4e9a13');
+    grad.addColorStop(0, ps.fill[0]);
+    grad.addColorStop(0.5, ps.fill[1]);
+    grad.addColorStop(1, ps.fill[2]);
     ctx.fillStyle = grad;
-    ctx.strokeStyle = '#37540f';
+    ctx.strokeStyle = ps.edge;
     ctx.lineWidth = 2;
 
     // top pipe
@@ -1215,6 +1482,22 @@
     ctx.strokeRect(pipe.x, botY + lipH, p.pipeW, skyH - botY - lipH + 4);
     ctx.fillRect(pipe.x - lip / 2, botY, p.pipeW + lip, lipH);
     ctx.strokeRect(pipe.x - lip / 2, botY, p.pipeW + lip, lipH);
+
+    // bamboo node rings (cosmetic only — no geometry or collision change)
+    if (ps.nodes > 0) {
+      ctx.save();
+      ctx.strokeStyle = ps.edge;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 1; i <= ps.nodes; i++) {
+        const yT = (topH - lipH) * (i / (ps.nodes + 1));
+        if (yT > 4) { ctx.moveTo(pipe.x, yT); ctx.lineTo(pipe.x + p.pipeW, yT); }
+        const yB = botY + lipH + (skyH - botY - lipH) * (i / (ps.nodes + 1));
+        if (yB < skyH - 4) { ctx.moveTo(pipe.x, yB); ctx.lineTo(pipe.x + p.pipeW, yB); }
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   function drawSnake(x, y) {

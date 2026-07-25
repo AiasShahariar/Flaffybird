@@ -28,6 +28,13 @@ Three progression phases, in order:
 Between runs: **gold** (`flappy-gold`) buys permanent `SHOP_ITEMS` from the
 Shop, reachable from the start and game-over menus.
 
+Cutting across all of that: **background zones**, a purely cosmetic layer keyed
+off score. `ZONES` is a table of `{ from, sky, cloud, sand, grass, horizon,
+hatch, pipe, pipeEdge, pipeNodes, decor }` — day (0–45), bamboo dusk
+(`ZONE_DUSK_SCORE`, 46), and a night placeholder (`ZONE_NIGHT_SCORE`, 75).
+Crossing a threshold cross-fades over `ZONE_FADE` seconds. Zone 0 reproduces
+the original look exactly, so nothing below 46 changed.
+
 ## Key conventions
 
 - **State machine**: `START / PLAYING / GAMEOVER / CHOICE`. `update()`
@@ -41,6 +48,20 @@ Shop, reachable from the start and game-over menus.
   (bullet-hit branch, `killSnake()`, the collision loop, `params()`). This is
   intentional: the user reserves the right to cut any of them, and removing
   one should be a couple of line deletes, not surgery.
+- **Zones are data, not code paths.** A new background is one `ZONES` entry plus
+  an optional `decor` function; nothing else in `draw()` changes. Two gotchas:
+  `decor` references hoisted `function` declarations defined much further down
+  (a `const`/arrow would throw a TDZ error at load), and the zone must never be
+  hung off `checkpointUnlocked` — that flag is a one-shot lifetime latch. The
+  zone is derived from `score` every frame, so it needs no rewind snapshot;
+  `syncZoneInstant()` snaps it in `resetGame()`, `applyCheckpoint()` (which sets
+  score *after* `resetGame`), and `doRewind()`.
+- **Two scroll accumulators, deliberately.** `groundOffset` is `% 48` for the
+  ground hatch; `bgScroll` is unbounded because decor identity is
+  `floor(offset/step)` and wrapping would make stalks morph in place. The zone
+  cross-fade advances on **raw** dt (presentational, one call site), while
+  `bgScroll` advances on the Falcon-Focus-slowed dt at both `groundOffset` sites
+  so parallax stays locked to the ground.
 - **Persisted keys** (all localStorage, all optional/try-wrapped):
   `flappy-best`, `flappy-gold`, `flappy-shop`, `flappy-checkpoint`,
   `flappy-parry-pos`, `flappy-desktop`.
