@@ -129,15 +129,6 @@
   .upg-name { font-weight: 800; font-size: 17px; }
   .upg-desc { font-size: 13.5px; line-height: 1.3; display: block; margin-top: 2px; }
 
-  #ownedBar {
-    position: fixed;
-    top: max(10px, env(safe-area-inset-top));
-    left: 12px;
-    font-size: 22px;
-    letter-spacing: 2px;
-    pointer-events: none;
-    text-shadow: 0 2px 2px rgba(0,0,0,.3);
-  }
 
   #parryBtn {
     position: fixed;
@@ -220,7 +211,6 @@
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="ownedBar"></div>
 <button id="parryBtn" type="button" class="hidden">PARRY</button>
 
 <div id="startScreen" class="overlay">
@@ -489,7 +479,6 @@
     bird.vy = 0;
     bird.angle = 0;
     bird.r = p.birdR;
-    updateOwnedBar();
     choiceScreen.classList.add('hidden');
     parryBtn.classList.add('hidden');
   }
@@ -519,7 +508,6 @@
     rewindReady = true;
     choiceScreen.classList.add('hidden');      // Early Bird's chooser is moot with everything owned
     state = PLAYING;
-    updateOwnedBar();
   }
 
   function flap() {
@@ -588,17 +576,8 @@
     bird.vy = params().flapV * 0.9;   // gentle boost so resuming is safe
     invulnUntil = gameTime + 1.2;
     sfx.powerup();
-    updateOwnedBar();
   }
 
-  function updateOwnedBar() {
-    ownedBar.innerHTML = UPGRADES.filter(u => has[u.id]).map(u => {
-      const dim = (u.id === 'shield' && !shieldReady) ||
-                  (u.id === 'peck' && !peckReady) ||
-                  (u.id === 'rewind' && !rewindReady);
-      return '<span style="opacity:' + (dim ? 0.35 : 1) + '">' + u.icon + '</span>';
-    }).join('');
-  }
 
   function onPipePassed(centered) {
     // Guardian Feather comes back only after 3 consecutive dead-centre passes
@@ -607,7 +586,7 @@
         shieldStreak++;
         if (shieldStreak >= SHIELD_STREAK_NEEDED) {
           shieldReady = true; shieldStreak = 0;
-          sfx.recharge(); updateOwnedBar();
+          sfx.recharge();
           popup('Shield restored!');
         } else {
           sfx.tick();
@@ -619,7 +598,7 @@
       }
     }
     if (has.peck && !peckReady && ++peckCharge >= RECHARGE_PIPES) {
-      peckReady = true; peckCharge = 0; sfx.recharge(); updateOwnedBar();
+      peckReady = true; peckCharge = 0; sfx.recharge();
     }
   }
 
@@ -645,7 +624,6 @@
     invulnUntil = gameTime + 1.2;
     rewindFlash = 0.6;
     sfx.rewind();
-    updateOwnedBar();
   }
 
   function splinter(pipe, p, skyH) {
@@ -952,14 +930,12 @@
           splinter(pipe, p, skyH);
           pipes.splice(i, 1);
           sfx.smash();
-          updateOwnedBar();
           continue;
         }
         if (has.shield && shieldReady) {
           shieldReady = false; shieldStreak = 0;
           invulnUntil = gameTime + 1.0;
           sfx.shieldBreak();
-          updateOwnedBar();
           continue;
         }
         if (has.rewind && rewindReady && history.length) { doRewind(); return; }
@@ -977,7 +953,6 @@
         bird.vy = p.flapV;
         invulnUntil = gameTime + 1.0;
         sfx.shieldBreak();
-        updateOwnedBar();
       } else if (invuln) {
         bird.y = skyH - bird.r;
         bird.vy = p.flapV * 0.8;
@@ -1453,7 +1428,6 @@
   const choiceScreen = document.getElementById('choiceScreen');
   const choiceCards = document.getElementById('choiceCards');
   const settingsScreen = document.getElementById('settingsScreen');
-  const ownedBar = document.getElementById('ownedBar');
   const finalScoreEl = document.getElementById('finalScore');
   const bestScoreEl = document.getElementById('bestScore');
   const goldEarnedEl = document.getElementById('goldEarned');
