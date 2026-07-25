@@ -197,7 +197,13 @@
   }
   .shop-buy.owned { background: #9bd85a; color: #37540f; box-shadow: 0 3px 0 #5e8a2e; }
   .set-hint { font-size: 15px; margin: 8px 0 14px; max-width: 260px; }
-  .set-row { display: flex; gap: 10px; justify-content: center; }
+  .set-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .checkpoint-note {
+    font-size: 15px;
+    font-weight: 800;
+    color: #8ef1ff;
+    -webkit-text-stroke: 0.5px #543847;
+  }
   #settingsScreen .set-row button {
     font-size: 16px;
     font-weight: 800;
@@ -220,8 +226,10 @@
 <div id="startScreen" class="overlay">
   <div class="title">Flappy Bird</div>
   <div class="start-wallet">Wallet: $<span id="walletStart">0</span></div>
+  <div id="checkpointNote" class="checkpoint-note hidden">Checkpoint 45 unlocked</div>
   <button id="startBtn" type="button" class="big-btn">Start</button>
   <div class="set-row">
+    <button id="newRunBtn" type="button" class="mid-btn hidden">New Run</button>
     <button id="shopBtn" type="button" class="mid-btn">Shop</button>
     <button id="startSettingsBtn" type="button" class="mid-btn">Settings</button>
   </div>
@@ -386,6 +394,11 @@
   let shopOwned = {};
   try { shopOwned = JSON.parse(localStorage.getItem('flappy-shop')) || {}; } catch (e) {}
 
+  // ---------- checkpoint (persisted) ----------
+  const CHECKPOINT_SCORE = 45;   // reach this once and later runs may resume from here
+  let checkpointUnlocked = false;
+  try { checkpointUnlocked = localStorage.getItem('flappy-checkpoint') === '1'; } catch (e) {}
+
   // ---------- snake phase (score 50+) ----------
   const SNAKE_SCORE = 50;
   const MAX_HP = 10;
@@ -477,18 +490,32 @@
     parryBtn.classList.add('hidden');
   }
 
-  function startGame() {
+  function startGame(atCheckpoint) {
     resetGame();
     state = PLAYING;
     startScreen.classList.add('hidden');
     gameOverScreen.classList.add('hidden');
     flap();
+    if (atCheckpoint) { applyCheckpoint(); return; }
     if (shopOwned.earlybird) {
       // free upgrade choice at the start of every run, without moving the 5-point schedule
       const n = nextUpgradeScore;
       openChoice();
       nextUpgradeScore = n;
     }
+  }
+
+  // resume at the score-45 checkpoint with the full upgrade kit
+  function applyCheckpoint() {
+    score = CHECKPOINT_SCORE;
+    nextUpgradeScore = CHECKPOINT_SCORE + 5;   // pool is fully owned, no more choosers
+    for (const u of UPGRADES) has[u.id] = true;
+    shieldReady = true; shieldStreak = 0;
+    peckReady = true; peckCharge = 0;
+    rewindReady = true;
+    choiceScreen.classList.add('hidden');      // Early Bird's chooser is moot with everything owned
+    state = PLAYING;
+    updateOwnedBar();
   }
 
   function flap() {
@@ -726,6 +753,15 @@
     gameTime += dt;
     rewindFlash = Math.max(0, rewindFlash - 2 * dt);
     hurtFlash = Math.max(0, hurtFlash - 1.8 * dt);
+
+    // reaching 45 unlocks the checkpoint for every later run
+    if (!checkpointUnlocked && score >= CHECKPOINT_SCORE) {
+      checkpointUnlocked = true;
+      try { localStorage.setItem('flappy-checkpoint', '1'); } catch (e) {}
+      popup('Checkpoint 45!');
+      sfx.powerup();
+      refreshMenus();
+    }
 
     // snake phase begins at 50
     if (!snakePhase && score >= SNAKE_SCORE) {
@@ -1424,6 +1460,8 @@
   const startBtn = document.getElementById('startBtn');
   const startSettingsBtn = document.getElementById('startSettingsBtn');
   const walletStartEl = document.getElementById('walletStart');
+  const newRunBtn = document.getElementById('newRunBtn');
+  const checkpointNote = document.getElementById('checkpointNote');
   const goldTotalEl = document.getElementById('goldTotalEl');
   const parryBtn = document.getElementById('parryBtn');
   const resetPosBtn = document.getElementById('resetPosBtn');
@@ -1531,6 +1569,14 @@
     walletStartEl.textContent = goldTotal;
   }
 
+  // reflect checkpoint state in the menus
+  function refreshMenus() {
+    checkpointNote.classList.toggle('hidden', !checkpointUnlocked);
+    newRunBtn.classList.toggle('hidden', !checkpointUnlocked);
+    startBtn.textContent = checkpointUnlocked ? 'Continue at ' + CHECKPOINT_SCORE : 'Start';
+    restartBtn.textContent = checkpointUnlocked ? 'Restart at ' + CHECKPOINT_SCORE : 'Restart';
+  }
+
   function toStartMenu() {
     state = START;
     resetGame();
@@ -1542,16 +1588,7 @@
   // Dev Mode: jump straight to score 45 with the full upgrade kit
   function devStart45() {
     closeSettings();
-    startGame();
-    score = 45;
-    nextUpgradeScore = 50;   // pool is fully owned, no more choosers
-    for (const u of UPGRADES) has[u.id] = true;
-    shieldReady = true; shieldStreak = 0;
-    peckReady = true; peckCharge = 0;
-    rewindReady = true;
-    choiceScreen.classList.add('hidden');   // Early Bird's chooser is moot with everything owned
-    state = PLAYING;
-    updateOwnedBar();
+    startGame(true);
   }
 
   function primaryAction() {
@@ -1589,7 +1626,8 @@
       if (card) { ensureAudio(); chooseUpgrade(card.dataset.id); }
       return;
     }
-    if (t === restartBtn || t === startBtn) { ensureAudio(); startGame(); return; }
+    if (t === restartBtn || t === startBtn) { ensureAudio(); startGame(checkpointUnlocked); return; }
+    if (t === newRunBtn) { ensureAudio(); startGame(false); return; }
     if (t === menuBtn) { toStartMenu(); return; }
     if (t === startSettingsBtn || t === goSettingsBtn) { openSettings(); return; }
     if (state === START) return;   // starting requires the Start button now
@@ -1641,6 +1679,7 @@
   resize();
   resetGame();
   walletStartEl.textContent = goldTotal;
+  refreshMenus();
   requestAnimationFrame(frame);
 })();
 </script>
