@@ -20,24 +20,40 @@ Three progression phases, in order:
    resume at 45 with all 9 upgrades via `applyCheckpoint()`; Start/Restart
    relabel themselves, and a **New Run** button forces a fresh 0-start.
 3. **Snake ambush (50+)** — `SNAKE_SCORE`. Bird gains HP (`maxHp`) and a
-   katana. Armed snakes cling to pipe sides and fire aimed bullets (1 damage).
-   The PARRY button (or left click in desktop mode, or P/Enter) opens a 0.16s
-   window that flips a bullet to `friendly`, which then homes back and kills
-   its snake for gold. A new breed joins the pool every 10 points via
-   `SNAKE_TYPES` — vipers at 50, two-headed Twin Fangs at 60 firing 2.5× as
-   often. Every unlocked breed is equally likely to spawn, so adding one is a
-   single table entry: `heads` drives both the fork in `drawSnake` and the
-   alternating muzzle in the firing block (both read `headOffset()`, which is
-   why they stay in sync), and `rate` divides the shot interval.
+   katana. Armed snakes cling to pipe sides and fire. The PARRY button (or left
+   click in desktop mode, or P/Enter) opens a 0.16s window that flips a bullet
+   to `friendly`, which then homes back and kills its snake for gold.
 
-Between runs: **gold** (`flappy-gold`) accumulates. `SHOP_ITEMS` is currently
-**empty** — the Shop still opens from the start and game-over menus and shows an
-empty state. Each item's effect hook still lives where its system is
-(`shopOwned.earlybird` in `startGame`, `hearts`/`blade`/`quickdraw`/`phoenix` in
-the snake phase), so restoring one is a single table entry. `shopOwned` is
-pruned at load to ids present in `SHOP_ITEMS`, so a past purchase can't silently
-apply while its item is out of the shop — but the saved JSON is never rewritten,
-so purchases come back with the item.
+   **`SNAKE_TYPES` is a 12-row table**, one breed unlocking every 10 points from
+   50 to 160. Each row is `{ id, from, name, tip, heads, rate, cost, shot, body,
+   mark, girth, ...params }`. `shot` picks one case in `fireSnake()`; motion
+   picks one case in `stepKind()`; `girth` scales the drawn spine (hue alone
+   fails the squint test at twelve breeds). Deleting a breed is: its row, its
+   `fireSnake` case, its `stepKind` case if any, and its draw case.
+
+   Five bullet kinds total — `crawl`, `split`, `park`, `home`, `guard` — plus
+   `hazards[]` for the unparryable beam. **Beams deliberately live outside
+   `bullets[]`**: in it they'd need a parry-loop guard, a branched hit test, a
+   cap exemption and a cull exemption, four leaks for one breed.
+
+   Four rules the roster depends on:
+   - **Threat cost, not sprite count.** `cost` gates firing; a volley leader
+     pre-reserves the whole volley (picket 4, splitter 2) and members cost 0.
+     `threat` must be `let` and incremented as we fire — as a hoisted `const`,
+     N snakes fired against one stale read and overshot the cap.
+   - **`pressure` normalises pool dilution.** Equal-odds spawning means each
+     breed added lowers the pool's mean fire rate; measured, difficulty *peaked
+     at score 65* and halved by 130. `pressure` divides by the live pool's mean
+     rate against `BASE_MEAN_RATE`, so adding a breed needs no re-tuning.
+   - **No firing from offscreen-left** (`mx < 8`) and none under the PARRY
+     button. Shots used to spawn 67px off-screen — the single most-hated enemy
+     design in the research.
+   - **`forceCount`** pins the first two spawns of a newly unlocked breed, so it
+     is taught in isolation instead of being 1/12 of the pool.
+
+   Parry reach is `p.parryR`, absolute — **never** `bird.r * 4.2`.
+   `applyCheckpoint()` grants Hummingbird Form, which shrank reach from 80px to
+   49px on the standard route into the phase.
 
 Cutting across all of that: **background zones**, a purely cosmetic layer keyed
 off score. `ZONES` is a table of `{ from, sky, cloud, sand, grass, horizon,
