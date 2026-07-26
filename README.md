@@ -21,8 +21,7 @@ A roguelike Flappy Bird — one self-contained HTML file, no dependencies, no bu
   Snakes** own 70-79 — blue, they charge up and then fire a round at 5x speed,
   so parry on the flash rather than reacting to the shot — and they keep firing
   at your back after you overtake them. **Bombardiers** own 80-89 — their round
-  flies at 3x and detonates near you into a blast four times its size, so cut it
-  early. From 90 all four mix,
+  flies at 3x and detonates near you into an enormous red fireball, so cut it early. From 90 all four mix,
   and every pipe carries a snake. A parried shot always flies back the way
   it came, and kills whatever it reaches.
 

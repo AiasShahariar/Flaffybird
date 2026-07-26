@@ -27,7 +27,10 @@ Three progression phases, in order:
    **`SNAKE_TYPES` is the extension point** — currently four rows: vipers at 50,
    two-headed Twin Fangs at 60 firing 2.5x as often, XLR8 Snakes at 70 whose
    round travels at 5x speed, and Bombardiers at 80 whose 3x round detonates on
-   a proximity fuse into a blast 4x its radius, lasting 1s. A row is `{ id, from,
+   a proximity fuse into a huge bright-red blast (72px, ~11x the round) lasting
+   1s. The blast draws its FULL radius as a ring on frame one and lets the fill
+   race out to meet it — the trick the old Ash Bloomer used, so the hitbox never
+   appears to grow into you after the fact. A row is `{ id, from,
    name, tip, heads, rate, shot, body, mark }`; `shot` picks a case in
    `fireSnake()`, `rate` divides the shot interval, and `heads` drives three
    things at once — the fork in `drawSnake`, the muzzle positions, and the

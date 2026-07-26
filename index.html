@@ -456,9 +456,9 @@
     { id: 'xlr8',  from: 70, name: 'XLR8 Snakes', tip: 'It charges, then fires FAST — parry on the flash',
       heads: 1, rate: 1.3, shot: 'dash', body: '#2f6fd8', mark: '#123a7a',
       bv: 5, windup: 0.45, rear: true },
-    { id: 'boomer', from: 80, name: 'Bombardiers', tip: 'Cut it early — the blast is bigger than the round',
+    { id: 'boomer', from: 80, name: 'Bombardiers', tip: 'Cut it early — the blast is enormous',
       heads: 1, rate: 1.0, shot: 'boom', body: '#d86a2f', mark: '#7a3410',
-      bv: 3, fuse: 30, blast: 26, blastLife: 1.0 },
+      bv: 3, fuse: 30, blast: 72, blastLife: 1.0 },
   ];
 
   // `until` is supported as a retirement lever but deliberately unset: every
@@ -1430,23 +1430,37 @@
       }
     }
 
-    // blasts — a big red bloom that expands then fades over its life
+    // blasts — a huge, bright red bloom. The full footprint is drawn from the
+    // first frame (the trick the old Ash Bloomer used) so the hitbox never grows
+    // into you after the fact; the fill just races out to meet the ring.
     for (const bl of blasts) {
       const f = Math.min(1, bl.t / bl.life);
-      const r = bl.r * (0.45 + 0.55 * Math.min(1, f * 3));
-      const g = ctx.createRadialGradient(bl.x, bl.y, r * 0.15, bl.x, bl.y, r);
-      g.addColorStop(0, 'rgba(255,240,200,' + (0.95 * (1 - f)).toFixed(3) + ')');
-      g.addColorStop(0.45, 'rgba(255,90,30,' + (0.8 * (1 - f)).toFixed(3) + ')');
-      g.addColorStop(1, 'rgba(200,20,10,0)');
+      const grow = Math.min(1, f * 6);            // snaps to full size, then burns down
+      const r = Math.max(1, bl.r * (0.3 + 0.7 * grow));
+      const fade = Math.pow(1 - f, 0.7);
+      const g = ctx.createRadialGradient(bl.x, bl.y, r * 0.05, bl.x, bl.y, r);
+      g.addColorStop(0,    'rgba(255,255,240,' + fade.toFixed(3) + ')');
+      g.addColorStop(0.22, 'rgba(255,120,50,'  + (0.98 * fade).toFixed(3) + ')');
+      g.addColorStop(0.6,  'rgba(255,25,25,'   + (0.9 * fade).toFixed(3) + ')');
+      g.addColorStop(1,    'rgba(190,0,0,0)');
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.arc(bl.x, bl.y, r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255,120,60,' + (0.7 * (1 - f)).toFixed(3) + ')';
-      ctx.lineWidth = 3;
+      // the published footprint — full radius, immediately
+      ctx.strokeStyle = 'rgba(255,70,45,' + (0.85 * fade).toFixed(3) + ')';
+      ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.arc(bl.x, bl.y, r, 0, Math.PI * 2);
+      ctx.arc(bl.x, bl.y, bl.r, 0, Math.PI * 2);
       ctx.stroke();
+      // white-hot leading rim while it is still expanding
+      if (grow < 1) {
+        ctx.strokeStyle = 'rgba(255,240,220,' + (0.9 * (1 - grow)).toFixed(3) + ')';
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        ctx.arc(bl.x, bl.y, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
 
     // XLR8 charge tell: a ring closing in on the muzzle, so the press is a read
