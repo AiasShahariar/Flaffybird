@@ -350,7 +350,6 @@
   }
   const sfx = {
     flap()        { tone(420, 830, 0.09, 'square', 0.10, 0); },
-    score()       { tone(880, 880, 0.08, 'sine', 0.18, 0); tone(1318, 1318, 0.12, 'sine', 0.18, 0.08); },
     hit()         { tone(320, 55, 0.30, 'sawtooth', 0.22, 0); tone(160, 40, 0.35, 'square', 0.15, 0.05); },
     powerup()     { tone(523, 523, 0.09, 'sine', 0.18, 0); tone(659, 659, 0.09, 'sine', 0.18, 0.07); tone(784, 784, 0.16, 'sine', 0.18, 0.14); },
     shieldBreak() { tone(1100, 250, 0.22, 'triangle', 0.22, 0); },
@@ -434,7 +433,7 @@
     { id: 'twin',  from: 60, name: 'Twin Fangs', tip: '2 heads, and they fire far faster',
       heads: 2, rate: 2.5, shot: 'aimed', body: '#b8455b', mark: '#7d2438' },
     { id: 'xlr8',  from: 70, name: 'XLR8 Snakes', tip: 'It charges, then fires FAST — parry on the flash',
-      heads: 1, rate: 0.7, shot: 'dash', body: '#2f6fd8', mark: '#123a7a',
+      heads: 1, rate: 1.3, shot: 'dash', body: '#2f6fd8', mark: '#123a7a',
       bv: 5, windup: 0.45 },
   ];
 
@@ -1090,7 +1089,11 @@
         if (threat + cost > CAP) continue;
         if (fireSnake(pipe, s, st, sp, mx, my, p, skyH) === false) continue;
         threat += cost;
-        s.nextShot = gameTime + (1.6 + Math.random()) / (st.rate * pressure);
+        // A snake is only in firing range for ~2s. Subtract the wind-up so a
+        // charging breed's cycle stays the interval instead of interval+windup —
+        // otherwise it never gets a second shot away before scrolling past.
+        s.nextShot = gameTime + Math.max(0.3,
+          (1.6 + Math.random()) / (st.rate * pressure) - (st.windup || 0));
       }
     }
 
@@ -1208,7 +1211,6 @@
       if (!pipe.scored && pipe.x + p.pipeW < bird.x - bird.r) {
         pipe.scored = true;
         score++;
-        sfx.score();
         onPipePassed(Math.abs(bird.y - gapY) <= p.gap * CENTER_TOLERANCE);
       }
       const gapTop = gapY - p.gap / 2, gapBot = gapY + p.gap / 2;

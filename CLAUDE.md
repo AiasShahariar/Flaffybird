@@ -34,7 +34,9 @@ Three progression phases, in order:
    `headOffset()`, which is why the shots come from the heads you can see.
    `heads` is also the breed's threat cost, so a two-round volley reserves two
    of the four slots. `bv` scales round speed; `windup` makes the breed charge
-   first and is **required** above about 2x — a 5x round crosses from muzzle to
+   first, is **subtracted from the next interval** (a snake is only in firing
+   range ~2s, so charge-on-top meant it never got a second shot away), and is
+   **required** above about 2x — a 5x round crosses from muzzle to
    bird in ~0.2s, well inside human reaction time, so the read has to be the
    charge tell, not the round.
 
@@ -110,6 +112,8 @@ exactly, so nothing below 46 changed.
   `devStart(n)` — full upgrade kit, snake phase armed, full HP, zone synced,
   `breedsSeen` pre-set so unlock banners don't replay. Each lands inside a
   different breed's solo stretch for testing.
+- **No sound on passing a pipe.** `sfx.score` is deliberately gone, definition
+  and call site both — do not reintroduce it.
 - **Persisted keys** (all localStorage, all optional/try-wrapped):
   `flappy-best`, `flappy-gold`, `flappy-shop`, `flappy-checkpoint`,
   `flappy-parry-pos`, `flappy-desktop`.
