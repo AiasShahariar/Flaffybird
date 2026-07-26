@@ -23,8 +23,7 @@ A roguelike Flappy Bird — one self-contained HTML file, no dependencies, no bu
   and every pipe carries a snake. A parried shot always flies back the way
   it came, and kills whatever it reaches.
 
-Gold carries over between runs and buys five permanent upgrades in the
-**Shop** — from Kingfisher's Patience at $60 up to Still Water at $1500.
+Gold carries over between runs. The **Shop** is empty for now.
 **Settings** lets you drag the PARRY button anywhere and switch on desktop
 controls (space to flap, left click to parry).
 

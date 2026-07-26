@@ -388,23 +388,11 @@
   let rewindReady = false;
 
   // ---------- shop (permanent purchases, persisted) ----------
-  // Empty for now. Re-adding an item is one entry here — its effect hook still
-  // lives where its system is (earlybird in startGame, hearts/blade/quickdraw/
-  // phoenix in the snake phase), so nothing else needs rewiring.
-  // Nothing here touches maxHp, the i-frames, the parry window or parryR: the skill
-  // check is identical at $0 and at $2890, so the breed ladder is balanced once.
-  const SHOP_ITEMS = [
-    { id: 'kingfisher', name: "Kingfisher's Patience", price: 60,
-      desc: 'Hold your nerve. Parry at the last moment and the shot rockets back — and pays $8.' },
-    { id: 'secondwind', name: 'Second Wind', price: 180,
-      desc: "When you're hurt, every parry kill heals a heart." },
-    { id: 'ricochet',   name: 'Ricochet Ronin', price: 450,
-      desc: 'Your parried shot kills a second snake before it stops.' },
-    { id: 'crossguard', name: 'Crossguard', price: 700,
-      desc: 'Clear the whole screen in one swing and the blade re-arms instantly.' },
-    { id: 'stillwater', name: 'Still Water', price: 1500,
-      desc: 'Every parry kill slows the world for half a second.' },
-  ];
+  // Empty for now. Re-adding an item is one entry here — each effect hook still
+  // lives where its system is (kingfisher in the parry loop and killSnake,
+  // secondwind in killSnake, ricochet in the friendly-arrival branch, crossguard
+  // after the parry loop, stillwater on the dt scale), so nothing else rewires.
+  const SHOP_ITEMS = [];
   let shopOwned = {};
   try { shopOwned = JSON.parse(localStorage.getItem('flappy-shop')) || {}; } catch (e) {}
   // Past purchases stay in localStorage so they come back with the item, but an
