@@ -495,10 +495,10 @@
   let lastIds = [];        // anti-repeat on consecutive spawns
   let healReady = -10, stillUntil = -10;
   const DASH_SCORE = 80, DASH_CD = 1.0, DASH_TIME = 0.16, DASH_DIST = 62;
-  // Ground gained by dashing is kept, so the bird marches up the screen. Capped
-  // because every pixel forward is a pixel less warning on what is coming.
-  const DASH_MAX_X = 0.62;
-  let dashUntil = -10, dashCooldownUntil = -10, dashFrom = 0, dashTo = 0, dashPhase = 0;
+  // The dash moves the WORLD, not the bird: the camera travels with it, so the
+  // bird holds its lane and keeps its full view of what is coming. Ground gained
+  // is real progress — pipes arrive sooner — without costing warning distance.
+  let dashUntil = -10, dashCooldownUntil = -10, dashMoved = 0, dashPhase = 0;
   let parryWindowUntil = -10, parryCooldownUntil = -10, swingStart = -10;
   let bulletImmuneUntil = -10;
   let hurtFlash = 0;
@@ -896,12 +896,7 @@
 
   function dash() {
     if (!dashReady() || state !== PLAYING) return;
-    const from = bird.x;
-    const to = Math.min(from + DASH_DIST, W * DASH_MAX_X);
-    // Bail BEFORE spending the cooldown — at the cap the press must be free,
-    // not silently eaten.
-    if (to <= from + 0.5) return;
-    dashFrom = from; dashTo = to;
+    dashMoved = 0;
     dashCooldownUntil = gameTime + DASH_CD;
     dashUntil = gameTime + DASH_TIME;
     invulnUntil = Math.max(invulnUntil, gameTime + DASH_TIME + 0.20);
@@ -1044,12 +1039,25 @@
 
     if (bird.y - bird.r < 0) { bird.y = bird.r; bird.vy = 0; }
 
-    // dash: a forward lunge whose ground is KEPT — the bird holds its new lane
+    // dash: shove the whole world left so the camera travels with the bird. The
+    // bird stays in its lane; everything positioned in world space moves together,
+    // or the dash would tear the scene apart.
     if (gameTime < dashUntil) {
       dashPhase = 1 - (dashUntil - gameTime) / DASH_TIME;
-      bird.x = dashFrom + (dashTo - dashFrom) * Math.sin(dashPhase * Math.PI * 0.5);
+      const target = DASH_DIST * Math.sin(dashPhase * Math.PI * 0.5);
+      const step = target - dashMoved;
+      dashMoved = target;
+      if (step > 0) {
+        for (const pp of pipes)     pp.x -= step;
+        for (const bb of bullets)   bb.x -= step;
+        for (const bl of blasts)    bl.x -= step;
+        for (const q of particles)  q.x  -= step;
+        for (const q of popups)     q.x  -= step;
+        for (const bo of bolts)   { bo.x1 -= step; bo.x2 -= step; }
+        groundOffset = (groundOffset + step) % 48;
+        bgScroll += step * 0.5;
+      }
     }
-    bird.x = Math.max(W * 0.28, Math.min(W * DASH_MAX_X, bird.x));
 
     // spawn / recycle pipes
     if (pipes.length === 0 || pipes[pipes.length - 1].x < W - p.spacing) {
@@ -1578,6 +1586,22 @@
           ? 'conic-gradient(rgba(60,130,210,0.9) ' + ((1 - frac) * 360).toFixed(0) + 'deg, rgba(60,130,210,0.3) 0deg)'
           : 'rgba(60,130,210,0.9)';
       }
+    }
+
+    // dash speed lines — the bird holds its lane now, so the rush needs to read
+    // somewhere. Drawn behind it, fading as the lunge finishes.
+    if (state === PLAYING && gameTime < dashUntil) {
+      const a = 1 - dashPhase;
+      ctx.strokeStyle = 'rgba(150,210,255,' + (0.75 * a).toFixed(3) + ')';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const ly = bird.y + (i - 2) * bird.r * 0.65;
+        const len = bird.r * (2.6 + (i % 2) * 1.5) * (0.5 + a);
+        ctx.moveTo(bird.x - bird.r * 1.2, ly);
+        ctx.lineTo(bird.x - bird.r * 1.2 - len, ly);
+      }
+      ctx.stroke();
     }
 
     // score
