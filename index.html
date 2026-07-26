@@ -495,7 +495,10 @@
   let lastIds = [];        // anti-repeat on consecutive spawns
   let healReady = -10, stillUntil = -10;
   const DASH_SCORE = 80, DASH_CD = 1.0, DASH_TIME = 0.16, DASH_DIST = 62;
-  let dashUntil = -10, dashCooldownUntil = -10, dashFrom = 0, dashPhase = 0;
+  // Ground gained by dashing is kept, so the bird marches up the screen. Capped
+  // because every pixel forward is a pixel less warning on what is coming.
+  const DASH_MAX_X = 0.62;
+  let dashUntil = -10, dashCooldownUntil = -10, dashFrom = 0, dashTo = 0, dashPhase = 0;
   let parryWindowUntil = -10, parryCooldownUntil = -10, swingStart = -10;
   let bulletImmuneUntil = -10;
   let hurtFlash = 0;
@@ -893,12 +896,15 @@
 
   function dash() {
     if (!dashReady() || state !== PLAYING) return;
+    const from = bird.x;
+    const to = Math.min(from + DASH_DIST, W * DASH_MAX_X);
+    // Bail BEFORE spending the cooldown — at the cap the press must be free,
+    // not silently eaten.
+    if (to <= from + 0.5) return;
+    dashFrom = from; dashTo = to;
     dashCooldownUntil = gameTime + DASH_CD;
     dashUntil = gameTime + DASH_TIME;
-    dashFrom = bird.x;
-    // i-frames cover the lunge AND the ease back, so you can never be dropped
-    // inside a pipe by your own dash
-    invulnUntil = Math.max(invulnUntil, gameTime + DASH_TIME + 0.30);
+    invulnUntil = Math.max(invulnUntil, gameTime + DASH_TIME + 0.20);
     sfx.swing();
   }
   function dashReady() {
@@ -1038,17 +1044,12 @@
 
     if (bird.y - bird.r < 0) { bird.y = bird.r; bird.vy = 0; }
 
-    // dash: a short forward lunge that eases back to the home lane
-    const homeX = W * 0.28;
+    // dash: a forward lunge whose ground is KEPT — the bird holds its new lane
     if (gameTime < dashUntil) {
       dashPhase = 1 - (dashUntil - gameTime) / DASH_TIME;
-      bird.x = dashFrom + DASH_DIST * Math.sin(dashPhase * Math.PI * 0.5);
-    } else if (bird.x > homeX + 0.5) {
-      bird.x += (homeX - bird.x) * Math.min(1, dt * 6);
-      dashPhase = 0;
-    } else {
-      bird.x = homeX;
+      bird.x = dashFrom + (dashTo - dashFrom) * Math.sin(dashPhase * Math.PI * 0.5);
     }
+    bird.x = Math.max(W * 0.28, Math.min(W * DASH_MAX_X, bird.x));
 
     // spawn / recycle pipes
     if (pipes.length === 0 || pipes[pipes.length - 1].x < W - p.spacing) {

@@ -27,7 +27,9 @@ A roguelike Flappy Bird — one self-contained HTML file, no dependencies, no bu
   it came, and kills whatever it reaches.
 
 - **80+** — you get a **DASH**: a short forward lunge on a one-second cooldown.
-  Right click on desktop, or the DASH button on a phone.
+  The ground you gain is yours to keep, so dashes stack you further up the
+  screen — but the further forward you sit, the less warning you get. Right
+  click on desktop, or the DASH button on a phone.
 
 Gold carries over between runs and buys the **Stormcutter** ($500) — parry at
 the very last possible moment and the blade throws lightning instead of

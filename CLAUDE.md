@@ -87,10 +87,13 @@ Three progression phases, in order:
    it, so the round damaged you before it could ever enter the band and the item
    could never fire. `R0 * 1.75` leaves a ~40-64ms press window.
 
-   **Dash** unlocks at `DASH_SCORE` (80): a 0.16s forward lunge that eases home,
-   on a 1s cooldown, with i-frames covering the lunge *and* the ease-back so it
-   can never drop you inside a pipe. Right click on desktop, Shift on keyboard,
-   or the draggable DASH button, whose conic-gradient fills as it recharges.
+   **Dash** unlocks at `DASH_SCORE` (80): a 0.16s forward lunge whose ground is
+   **kept** — the bird holds its new lane rather than drifting back, so dashes
+   stack up to `DASH_MAX_X` (0.62 of the width). The cap exists because every
+   pixel forward is a pixel less warning on what is coming. A press at the cap
+   returns *before* spending the cooldown, so it is never silently eaten. Right
+   click on desktop, Shift on keyboard, or the draggable DASH button, whose
+   conic-gradient fills as it recharges.
 
 Cutting across all of that: **background zones**, a purely cosmetic layer keyed
 off score. `ZONES` is a table of `{ from, sky, cloud, sand, grass, horizon,
