@@ -433,6 +433,9 @@
       heads: 1, rate: 1.0, shot: 'aimed', body: '#8a5bb8', mark: '#5e3a8c' },
     { id: 'twin',  from: 60, name: 'Twin Fangs', tip: '2 heads, and they fire far faster',
       heads: 2, rate: 2.5, shot: 'aimed', body: '#b8455b', mark: '#7d2438' },
+    { id: 'xlr8',  from: 70, name: 'XLR8 Snakes', tip: 'It charges, then fires FAST — parry on the flash',
+      heads: 1, rate: 0.7, shot: 'dash', body: '#2f6fd8', mark: '#123a7a',
+      bv: 5, windup: 0.45 },
   ];
 
   // `until` is supported as a retirement lever but deliberately unset: every
@@ -728,7 +731,7 @@
       // doRewind does not rewind gameTime, so a restored nextShot in the past
       // would fire instantly — reroll it.
       pipes.push({ x: pp.x, gapC: pp.gapC, scored: pp.scored,
-                   snake: pp.snake ? { ...pp.snake, nextShot: 0 } : undefined });
+                   snake: pp.snake ? { ...pp.snake, nextShot: 0, charge: null } : undefined });
     }
     bullets.length = 0;
     history.length = 0;
@@ -773,13 +776,23 @@
   // ---------- snake firing ----------
   // One case for now; a new breed is a `shot` value plus a case here.
   function fireSnake(pipe, s, st, sp, mx, my, p, skyH) {
+    // A 5x round crosses from muzzle to bird in well under human reaction time, so
+    // it is telegraphed instead: the snake charges for `windup`, and the read is
+    // "press on the flash", not "react to the round". Returning false leaves the
+    // cadence untouched so the charge frames aren't counted as the shot.
+    if (st.windup) {
+      if (!s.charge) { s.charge = { at: gameTime + st.windup, from: gameTime }; return false; }
+      if (gameTime < s.charge.at) return false;
+      s.charge = null;
+    }
     // every head fires together, so a two-headed breed puts up two rounds at once
     for (let h = 0; h < st.heads; h++) {
       const off = headOffset(st, h);
       const hx = sp.x - 39 + off.x, hy = sp.y - 4 + off.y;
       const ang = Math.atan2(bird.y - hy, bird.x - hx);
-      bullets.push({ x: hx, y: hy, vx: Math.cos(ang) * p.bulletV, vy: Math.sin(ang) * p.bulletV,
-                     friendly: false, pipe, breed: st.id, cost: 1 });
+      const v = p.bulletV * (st.bv || 1);
+      bullets.push({ x: hx, y: hy, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v,
+                     friendly: false, pipe, breed: st.id, cost: 1, fast: st.bv > 1 });
     }
     sfx.shoot();
     return true;
@@ -1331,6 +1344,28 @@
       }
     }
 
+    // XLR8 charge tell: a ring closing in on the muzzle, so the press is a read
+    // on the flash rather than a reaction to a round you cannot see coming
+    for (const pipe of pipes) {
+      const s = pipe.snake;
+      if (!s || !s.alive || !s.charge) continue;
+      const st = snakeType(s);
+      const sp = snakePos(pipe, p, skyH);
+      const mx = sp.x - 39, my = sp.y - 4;
+      const t = Math.min(1, (gameTime - s.charge.from) / st.windup);
+      ctx.strokeStyle = 'rgba(90,170,255,' + (0.4 + 0.6 * t).toFixed(2) + ')';
+      ctx.lineWidth = 2 + 2 * t;
+      ctx.beginPath();
+      ctx.arc(mx, my, 26 * (1 - t) + 5, 0, Math.PI * 2);
+      ctx.stroke();
+      if (t > 0.82) {                          // release flash
+        ctx.fillStyle = 'rgba(200,230,255,0.85)';
+        ctx.beginPath();
+        ctx.arc(mx, my, 9, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
     // bullets — one clock for every enemy round, so they blink in unison and
     // read as a single warning signal rather than random flicker
     const bt = performance.now();
@@ -1346,6 +1381,16 @@
         ctx.fill();
         ctx.stroke();
       } else {
+        // a 5x round is a blur at 60fps — draw the streak so it reads as motion
+        if (b.fast) {
+          const sp = Math.hypot(b.vx, b.vy) || 1;
+          ctx.strokeStyle = 'rgba(120,190,255,0.75)';
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.moveTo(b.x, b.y);
+          ctx.lineTo(b.x - b.vx / sp * 44, b.y - b.vy / sp * 44);
+          ctx.stroke();
+        }
         ctx.fillStyle = 'rgba(255,40,40,' + halo.toFixed(3) + ')';
         ctx.beginPath();
         ctx.arc(b.x, b.y, 15, 0, Math.PI * 2);

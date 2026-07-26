@@ -24,15 +24,19 @@ Three progression phases, in order:
    click in desktop mode, or P/Enter) opens a 0.16s window that flips a bullet
    to `friendly`, which then homes back and kills its snake for gold.
 
-   **`SNAKE_TYPES` is the extension point** — currently two rows, vipers at 50
-   and two-headed Twin Fangs at 60 firing 2.5x as often. A row is `{ id, from,
+   **`SNAKE_TYPES` is the extension point** — currently three rows: vipers at 50,
+   two-headed Twin Fangs at 60 firing 2.5x as often, and XLR8 Snakes at 70 whose
+   round travels at 5x speed. A row is `{ id, from,
    name, tip, heads, rate, shot, body, mark }`; `shot` picks a case in
    `fireSnake()`, `rate` divides the shot interval, and `heads` drives three
    things at once — the fork in `drawSnake`, the muzzle positions, and the
    volley size, since **every head fires together**. All of them read
    `headOffset()`, which is why the shots come from the heads you can see.
    `heads` is also the breed's threat cost, so a two-round volley reserves two
-   of the four slots.
+   of the four slots. `bv` scales round speed; `windup` makes the breed charge
+   first and is **required** above about 2x — a 5x round crosses from muzzle to
+   bird in ~0.2s, well inside human reaction time, so the read has to be the
+   charge tell, not the round.
 
    Ten further breeds with distinct projectiles (predictive lane, ceiling
    skimmer, splitter, burst, parked blocker, homer, wall, growing disc,

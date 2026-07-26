@@ -17,8 +17,10 @@ A roguelike Flappy Bird — one self-contained HTML file, no dependencies, no bu
 - **50+** — snake ambush. You get 10 HP and a katana; armed snakes on the
   pipes shoot at you for 1 damage each. Time the **PARRY** button to deflect
   a bullet back and kill the snake for $5. **Vipers** own 50-59 and two-headed
-  **Twin Fangs** own 60-69 — both heads fire at once, 2.5x as often. From 70 they
-  mix, and every pipe carries a snake. A parried shot always flies back the way
+  **Twin Fangs** own 60-69 — both heads fire at once, 2.5x as often. **XLR8
+  Snakes** own 70-79 — blue, they charge up and then fire a round at 5x speed,
+  so parry on the flash rather than reacting to the shot. From 80 all three mix,
+  and every pipe carries a snake. A parried shot always flies back the way
   it came, and kills whatever it reaches.
 
 Gold carries over between runs and buys five permanent upgrades in the
