@@ -26,11 +26,14 @@ Three progression phases, in order:
 
    **`SNAKE_TYPES` is the extension point** — currently four rows: vipers at 50,
    two-headed Twin Fangs at 60 firing 2.5x as often, XLR8 Snakes at 70 whose
-   round travels at 5x speed, and Bombardiers at 80 whose 3x round detonates on
-   a proximity fuse into a huge bright-red blast (72px, ~11x the round) lasting
-   1s. The blast draws its FULL radius as a ring on frame one and lets the fill
-   race out to meet it — the trick the old Ash Bloomer used, so the hitbox never
-   appears to grow into you after the fact. A row is `{ id, from,
+   round travels at 5x speed, and Bombardiers at 80, the one **unparryable**
+   breed: a yellow 3x round whose fuse trips at 70px — outside the 40px parry
+   reach, so it never becomes cuttable — painting a 100px ring that arms over
+   `blastArm` (0.35s) before it detonates. The answer is footwork, and the
+   numbers are tuned for it: escaping needs 81px of vertical travel, a flap
+   clears 94px and falling clears 120px, so either direction works with margin
+   while standing still is a guaranteed hit. Damage applies **only** during the
+   `blastLive` window, never during the telegraph. A row is `{ id, from,
    name, tip, heads, rate, shot, body, mark }`; `shot` picks a case in
    `fireSnake()`, `rate` divides the shot interval, and `heads` drives three
    things at once — the fork in `drawSnake`, the muzzle positions, and the
@@ -73,6 +76,10 @@ Three progression phases, in order:
      died just kept drifting forward as a harmless blue dot — common with
      two-round volleys, where the first kill orphans the second round. An
      orphaned round still cuts down any snake it passes.
+   - **A staggered breed sends its heads one chasing the other.** `stagger`
+     schedules the follow-up head on `s.pending`, released near the top of the
+     firing loop **ahead of the cadence and landing gates** — it is the back half
+     of a volley that already cleared both, and re-gating it just drops the round.
    - **Blasts live in `blasts[]`, not `bullets[]`** — area, not projectile, so
      they never home, flip or cull positionally. Each damages once (`hit`), never
      ticking across its whole 1s life.

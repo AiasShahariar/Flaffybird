@@ -451,14 +451,18 @@
   const SNAKE_TYPES = [
     { id: 'viper', from: SNAKE_SCORE, name: 'Vipers', tip: 'Parry their bullets back at them!',
       heads: 1, rate: 1.0, shot: 'aimed', body: '#8a5bb8', mark: '#5e3a8c' },
-    { id: 'twin',  from: 60, name: 'Twin Fangs', tip: '2 heads, and they fire far faster',
-      heads: 2, rate: 2.5, shot: 'aimed', body: '#b8455b', mark: '#7d2438' },
+    { id: 'twin',  from: 60, name: 'Twin Fangs', tip: 'Two rounds, one chasing the other',
+      heads: 2, rate: 2.5, shot: 'aimed', body: '#b8455b', mark: '#7d2438', stagger: 0.22 },
     { id: 'xlr8',  from: 70, name: 'XLR8 Snakes', tip: 'It charges, then fires FAST — parry on the flash',
       heads: 1, rate: 1.3, shot: 'dash', body: '#2f6fd8', mark: '#123a7a',
       bv: 5, windup: 0.45, rear: true },
-    { id: 'boomer', from: 80, name: 'Bombardiers', tip: 'Cut it early — the blast is enormous',
-      heads: 1, rate: 1.0, shot: 'boom', body: '#d86a2f', mark: '#7a3410',
-      bv: 3, fuse: 30, blast: 72, blastLife: 1.0 },
+    // Deliberately unparryable: the fuse trips at 70px, well outside the 40px
+    // parry reach, so the round never becomes cuttable. The answer is footwork —
+    // the ring is painted for `blastArm` seconds before it goes off, and one
+    // decisive flap clears the radius.
+    { id: 'boomer', from: 80, name: 'Bombardiers', tip: 'Cannot be cut — flap clear of the ring',
+      heads: 1, rate: 1.0, shot: 'boom', body: '#d8bb2f', mark: '#7a6410',
+      bv: 3, fuse: 70, blast: 100, blastArm: 0.35, blastLive: 0.18, blastLife: 0.85 },
   ];
 
   // `until` is supported as a retirement lever but deliberately unset: every
@@ -490,7 +494,7 @@
   const bullets = [];      // { x, y, vx, vy, friendly, pipe, k?, cost?, rad?, ... }
   // Blasts are area, not projectiles: they never home, flip, or cull positionally,
   // so keeping them out of bullets[] avoids guards leaking through every loop.
-  const blasts = [];       // { x, y, r, t, life, hit }
+  const blasts = [];       // { x, y, r, t, arm, live, life, hit }
   const bolts = [];        // { x1, y1, x2, y2, t } — Stormcutter lightning
   let lastIds = [];        // anti-repeat on consecutive spawns
   let healReady = -10, stillUntil = -10;
@@ -761,7 +765,7 @@
       // doRewind does not rewind gameTime, so a restored nextShot in the past
       // would fire instantly — reroll it.
       pipes.push({ x: pp.x, gapC: pp.gapC, scored: pp.scored,
-                   snake: pp.snake ? { ...pp.snake, nextShot: 0, charge: null } : undefined });
+                   snake: pp.snake ? { ...pp.snake, nextShot: 0, charge: null, pending: null } : undefined });
     }
     bullets.length = 0;
     blasts.length = 0;
@@ -816,21 +820,29 @@
       if (gameTime < s.charge.at) return false;
       s.charge = null;
     }
-    // every head fires together, so a two-headed breed puts up two rounds at once
-    for (let h = 0; h < st.heads; h++) {
-      const off = headOffset(st, h);
-      let hx = sp.x - 39 + off.x;
-      const hy = sp.y - 4 + off.y;
-      if (st.rear) hx = Math.max(hx, 8);         // same clamp as the fire gate
-
-      const ang = Math.atan2(bird.y - hy, bird.x - hx);
-      const v = p.bulletV * (st.bv || 1);
-      bullets.push({ x: hx, y: hy, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v,
-                     friendly: false, pipe, breed: st.id, cost: 1, fast: st.bv > 1,
-                     fuse: st.fuse, blast: st.blast, blastLife: st.blastLife });
+    fireHead(pipe, s, st, sp, p, 0);
+    // A staggered breed sends its heads one chasing the other rather than as a
+    // simultaneous pair, so each round is its own parry.
+    if (st.heads > 1) {
+      if (st.stagger) s.pending = { at: gameTime + st.stagger, head: 1 };
+      else for (let h = 1; h < st.heads; h++) fireHead(pipe, s, st, sp, p, h);
     }
     sfx.shoot();
     return true;
+  }
+
+  function fireHead(pipe, s, st, sp, p, h) {
+    const off = headOffset(st, h);
+    let hx = sp.x - 39 + off.x;
+    const hy = sp.y - 4 + off.y;
+    if (st.rear) hx = Math.max(hx, 8);           // same clamp as the fire gate
+    const ang = Math.atan2(bird.y - hy, bird.x - hx);
+    const v = p.bulletV * (st.bv || 1);
+    bullets.push({ x: hx, y: hy, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v,
+                   friendly: false, pipe, breed: st.id, cost: 1,
+                   fast: st.bv > 1 && !st.fuse, hue: st.shot === 'boom' ? 'gold' : null,
+                   fuse: st.fuse, blast: st.blast, blastLife: st.blastLife,
+                   blastArm: st.blastArm, blastLive: st.blastLive });
   }
 
   // Where each head sits relative to the single-head anchor. Shared by the
@@ -1079,7 +1091,7 @@
         }
         lastIds = [t.id, lastIds[0]];
         pipe.snake = { type: t.id, side: Math.random() < 0.5 ? 'top' : 'bot',
-                       fy: Math.random(), alive: true, nextShot: 0, head: 0 };
+                       fy: Math.random(), alive: true, nextShot: 0, head: 0, pending: null };
       }
       pipes.push(pipe);
     }
@@ -1127,6 +1139,14 @@
         const off = headOffset(st, s.head);
         let mx = sp.x - 39 + off.x;
         const my = sp.y - 4 + off.y;
+        // Scheduled follow-up head. Released ahead of the cadence and landing
+        // gates on purpose: it is the back half of a volley that already cleared
+        // both, and re-gating it would just drop the second round.
+        if (s.pending && gameTime >= s.pending.at) {
+          const ph = s.pending.head;
+          s.pending = null;
+          if (sp.x - 39 >= 8 || st.rear) { fireHead(pipe, s, st, sp, p, ph); threat += 1; sfx.shoot(); }
+        }
         if (st.rear) {
           // Keeps shooting after you overtake it. The gun sits 39px off the pipe's
           // left, so the plain mx<8 gate silenced it the moment you drew level —
@@ -1238,10 +1258,11 @@
       }
       b.x += b.vx * dt;
       b.y += b.vy * dt;
-      // proximity fuse: detonates just inside parry reach, so cutting it early is
-      // the counter and letting it close is what sets the blast off
+      // proximity fuse: trips BEFORE it reaches you and outside parry reach, so
+      // this round is never cuttable — it paints a ring and you leave it
       if (!b.friendly && b.fuse && Math.hypot(b.x - bird.x, b.y - bird.y) < b.fuse) {
-        blasts.push({ x: b.x, y: b.y, r: b.blast, t: 0, life: b.blastLife, hit: false });
+        blasts.push({ x: b.x, y: b.y, r: b.blast, t: 0, arm: b.blastArm, live: b.blastLive,
+                      life: b.blastLife, hit: false });
         sfx.smash();
         bullets.splice(i, 1);
         continue;
@@ -1268,7 +1289,8 @@
     for (let i = blasts.length - 1; i >= 0; i--) {
       const bl = blasts[i];
       bl.t += dt;
-      if (!bl.hit && state === PLAYING &&
+      const armed = bl.t >= bl.arm && bl.t < bl.arm + bl.live;
+      if (armed && !bl.hit && state === PLAYING &&
           Math.hypot(bl.x - bird.x, bl.y - bird.y) < bl.r + bird.r * 0.6) {
         bl.hit = true;                       // one hit per blast, never a 1s damage tick
         if (gameTime >= bulletImmuneUntil && gameTime >= invulnUntil) {
@@ -1279,7 +1301,7 @@
           if (hp <= 0) { die(); return; }
         }
       }
-      if (bl.t >= bl.life) blasts.splice(i, 1);
+      if (bl.t >= bl.arm + bl.life) blasts.splice(i, 1);
     }
 
     // floating feedback text
@@ -1438,13 +1460,32 @@
       }
     }
 
-    // blasts — a huge, bright red bloom. The full footprint is drawn from the
-    // first frame (the trick the old Ash Bloomer used) so the hitbox never grows
-    // into you after the fact; the fill just races out to meet the ring.
+    // blasts — two phases. While arming it is a yellow ring with a disc closing
+    // on it, so you can read both the footprint and exactly when it goes off; the
+    // moment they meet it detonates bright red. No damage at all until then.
     for (const bl of blasts) {
-      const f = Math.min(1, bl.t / bl.life);
-      const grow = Math.min(1, f * 6);            // snaps to full size, then burns down
-      const r = Math.max(1, bl.r * (0.3 + 0.7 * grow));
+      if (bl.t < bl.arm) {
+        const f = bl.t / bl.arm;
+        ctx.fillStyle = 'rgba(230,190,40,0.13)';
+        ctx.beginPath();
+        ctx.arc(bl.x, bl.y, bl.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,220,60,' + (0.55 + 0.4 * f).toFixed(3) + ')';
+        ctx.lineWidth = 3 + 2 * f;
+        ctx.beginPath();
+        ctx.arc(bl.x, bl.y, bl.r, 0, Math.PI * 2);
+        ctx.stroke();
+        // the closing disc IS the countdown
+        ctx.strokeStyle = 'rgba(255,240,150,0.9)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(bl.x, bl.y, Math.max(1, bl.r * f), 0, Math.PI * 2);
+        ctx.stroke();
+        continue;
+      }
+      const f = Math.min(1, (bl.t - bl.arm) / bl.life);
+      const grow = Math.min(1, f * 8);
+      const r = Math.max(1, bl.r * (0.5 + 0.5 * grow));
       const fade = Math.pow(1 - f, 0.7);
       const g = ctx.createRadialGradient(bl.x, bl.y, r * 0.05, bl.x, bl.y, r);
       g.addColorStop(0,    'rgba(255,255,240,' + fade.toFixed(3) + ')');
@@ -1455,20 +1496,11 @@
       ctx.beginPath();
       ctx.arc(bl.x, bl.y, r, 0, Math.PI * 2);
       ctx.fill();
-      // the published footprint — full radius, immediately
       ctx.strokeStyle = 'rgba(255,70,45,' + (0.85 * fade).toFixed(3) + ')';
       ctx.lineWidth = 4;
       ctx.beginPath();
       ctx.arc(bl.x, bl.y, bl.r, 0, Math.PI * 2);
       ctx.stroke();
-      // white-hot leading rim while it is still expanding
-      if (grow < 1) {
-        ctx.strokeStyle = 'rgba(255,240,220,' + (0.9 * (1 - grow)).toFixed(3) + ')';
-        ctx.lineWidth = 7;
-        ctx.beginPath();
-        ctx.arc(bl.x, bl.y, r, 0, Math.PI * 2);
-        ctx.stroke();
-      }
     }
 
     // XLR8 charge tell: a ring closing in on the muzzle, so the press is a read
