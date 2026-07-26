@@ -20,9 +20,9 @@ A roguelike Flappy Bird — one self-contained HTML file, no dependencies, no bu
   **Twin Fangs** own 60-69 — two rounds, one chasing the other, 2.5x as often. **XLR8
   Snakes** own 70-79 — blue, they charge up and then fire a round at 5x speed,
   so parry on the flash rather than reacting to the shot — and they keep firing
-  at your back after you overtake them. **Bombardiers** own 80-89 — their yellow round
-  flies at 3x and stops short of you, painting a huge ring that goes off a
-  heartbeat later. You **cannot** parry it; flap clear of the circle. From 90 all four mix,
+  at your back after you overtake them. **Bombardiers** own 80-89 — a slow yellow
+  round that stops short of you and pops a ring a heartbeat later. You **cannot**
+  parry it; read the round on approach and be somewhere else. From 90 all four mix,
   and every pipe carries a snake. A parried shot always flies back the way
   it came, and kills whatever it reaches.
 

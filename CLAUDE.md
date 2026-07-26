@@ -27,13 +27,18 @@ Three progression phases, in order:
    **`SNAKE_TYPES` is the extension point** — currently four rows: vipers at 50,
    two-headed Twin Fangs at 60 firing 2.5x as often, XLR8 Snakes at 70 whose
    round travels at 5x speed, and Bombardiers at 80, the one **unparryable**
-   breed: a yellow 3x round whose fuse trips at 70px — outside the 40px parry
-   reach, so it never becomes cuttable — painting a 100px ring that arms over
-   `blastArm` (0.35s) before it detonates. The answer is footwork, and the
-   numbers are tuned for it: escaping needs 81px of vertical travel, a flap
-   clears 94px and falling clears 120px, so either direction works with margin
-   while standing still is a guaranteed hit. Damage applies **only** during the
-   `blastLive` window, never during the telegraph. A row is `{ id, from,
+   breed: a yellow 1.5x round whose fuse trips at 46px — outside the 40px parry
+   reach, so it never becomes cuttable — painting a 50px ring that arms over
+   `blastArm` before it detonates. Damage applies **only** during the
+   `blastLive` window, never during the telegraph.
+
+   Three numbers here are locked to each other, not free choices. `fuse` must sit
+   **above** `p.parryR` (or it becomes parryable) and **below** `blast + ~7` (or
+   the blast can never reach the bird and the breed is harmless). And `blastArm`
+   is bounded by gravity: escaping a 50px ring needs 34px of travel, which a
+   falling bird covers in 0.19s — so any arm longer than that means **doing
+   nothing dodges it for free**. Hence 0.18s. The real telegraph is the slow
+   yellow round on approach (~0.5s), not the ring. A row is `{ id, from,
    name, tip, heads, rate, shot, body, mark }`; `shot` picks a case in
    `fireSnake()`, `rate` divides the shot interval, and `heads` drives three
    things at once — the fork in `drawSnake`, the muzzle positions, and the

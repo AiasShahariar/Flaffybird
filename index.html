@@ -456,13 +456,17 @@
     { id: 'xlr8',  from: 70, name: 'XLR8 Snakes', tip: 'It charges, then fires FAST — parry on the flash',
       heads: 1, rate: 1.3, shot: 'dash', body: '#2f6fd8', mark: '#123a7a',
       bv: 5, windup: 0.45, rear: true },
-    // Deliberately unparryable: the fuse trips at 70px, well outside the 40px
-    // parry reach, so the round never becomes cuttable. The answer is footwork —
-    // the ring is painted for `blastArm` seconds before it goes off, and one
-    // decisive flap clears the radius.
+    // Deliberately unparryable: the fuse trips outside the 40px parry reach, so
+    // the round never becomes cuttable. `fuse` is boxed in on both sides — above
+    // p.parryR to stay uncuttable, and below blast + ~7 or the blast could never
+    // reach the bird and the breed would be harmless.
+    // `blastArm` is bounded by gravity, not by taste: escaping a 50px ring needs
+    // 34px of travel, and a falling bird covers that in 0.19s, so any longer arm
+    // means doing nothing dodges it for free. The real telegraph is the slow
+    // yellow round on approach (~0.5s), not the ring.
     { id: 'boomer', from: 80, name: 'Bombardiers', tip: 'Cannot be cut — flap clear of the ring',
       heads: 1, rate: 1.0, shot: 'boom', body: '#d8bb2f', mark: '#7a6410',
-      bv: 3, fuse: 70, blast: 100, blastArm: 0.35, blastLive: 0.18, blastLife: 0.85 },
+      bv: 1.5, fuse: 46, blast: 50, blastArm: 0.18, blastLive: 0.18, blastLife: 0.85 },
   ];
 
   // `until` is supported as a retirement lever but deliberately unset: every
@@ -1550,13 +1554,15 @@
           ctx.lineTo(b.x - b.vx / sp * 44, b.y - b.vy / sp * 44);
           ctx.stroke();
         }
-        ctx.fillStyle = 'rgba(255,40,40,' + halo.toFixed(3) + ')';
+        const gold = b.hue === 'gold';
+        ctx.fillStyle = gold ? 'rgba(255,205,40,' + halo.toFixed(3) + ')'
+                             : 'rgba(255,40,40,' + halo.toFixed(3) + ')';
         ctx.beginPath();
         ctx.arc(b.x, b.y, 15, 0, Math.PI * 2);
         ctx.fill();
         ctx.beginPath();
-        ctx.fillStyle = blink ? '#ff2020' : '#fff0f0';
-        ctx.strokeStyle = blink ? '#5c0000' : '#ff2020';
+        ctx.fillStyle   = gold ? (blink ? '#ffd21f' : '#fff8d0') : (blink ? '#ff2020' : '#fff0f0');
+        ctx.strokeStyle = gold ? (blink ? '#6b5200' : '#ffd21f') : (blink ? '#5c0000' : '#ff2020');
         ctx.lineWidth = 2.5;
         ctx.arc(b.x, b.y, 6.5, 0, Math.PI * 2);
         ctx.fill();
