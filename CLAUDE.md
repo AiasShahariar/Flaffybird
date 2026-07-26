@@ -54,7 +54,11 @@ Three progression phases, in order:
      as we fire — as a hoisted `const`, N snakes fired against one stale read
      and overshot the cap of 4.
    - **No firing from offscreen-left** (`mx < 8`) or from under the PARRY
-     button. Shots used to spawn 67px off-screen.
+     button. Shots used to spawn 67px off-screen. A breed flagged `rear: true`
+     swaps that gate for "part of the snake is still on screen" and clamps its
+     muzzle to `x >= 8`, so it keeps shooting once you overtake it without ever
+     firing from somewhere unseen. The gun sits 39px off the pipe's left edge,
+     so the plain gate silenced a snake the moment you drew level with it.
    - **`pressure`** raises the fire rate with score. Its dilution term applies
      to **mixed pools only** — in a solo stretch `meanRate` *is* that breed's
      rate, so dividing by it cancels `rate` algebraically and flattens every

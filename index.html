@@ -422,7 +422,7 @@
       heads: 2, rate: 2.5, shot: 'aimed', body: '#b8455b', mark: '#7d2438' },
     { id: 'xlr8',  from: 70, name: 'XLR8 Snakes', tip: 'It charges, then fires FAST — parry on the flash',
       heads: 1, rate: 1.3, shot: 'dash', body: '#2f6fd8', mark: '#123a7a',
-      bv: 5, windup: 0.45 },
+      bv: 5, windup: 0.45, rear: true },
   ];
 
   // `until` is supported as a retirement lever but deliberately unset: every
@@ -775,7 +775,10 @@
     // every head fires together, so a two-headed breed puts up two rounds at once
     for (let h = 0; h < st.heads; h++) {
       const off = headOffset(st, h);
-      const hx = sp.x - 39 + off.x, hy = sp.y - 4 + off.y;
+      let hx = sp.x - 39 + off.x;
+      const hy = sp.y - 4 + off.y;
+      if (st.rear) hx = Math.max(hx, 8);         // same clamp as the fire gate
+
       const ang = Math.atan2(bird.y - hy, bird.x - hx);
       const v = p.bulletV * (st.bv || 1);
       bullets.push({ x: hx, y: hy, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v,
@@ -1066,8 +1069,16 @@
         const st = snakeType(s);
         const sp = snakePos(pipe, p, skyH);
         const off = headOffset(st, s.head);
-        const mx = sp.x - 39 + off.x, my = sp.y - 4 + off.y;
-        if (mx < 8) continue;                    // never fire from offscreen-left
+        let mx = sp.x - 39 + off.x;
+        const my = sp.y - 4 + off.y;
+        if (st.rear) {
+          // Keeps shooting after you overtake it. The gun sits 39px off the pipe's
+          // left, so the plain mx<8 gate silenced it the moment you drew level —
+          // instead require part of the snake to still be on screen and fire from
+          // that visible body, so the round never comes from somewhere unseen.
+          if (sp.x + 12 < 16) continue;
+          mx = Math.max(mx, 8);
+        } else if (mx < 8) continue;             // never fire from offscreen-left
         // don't open a threat underneath the player's own thumb
         if (Math.hypot(mx - btnX, my - btnY) < 84) continue;
         if (!s.nextShot) { s.nextShot = gameTime + (0.35 + Math.random() * 0.45) / Math.max(1, st.rate); continue; }
@@ -1341,7 +1352,7 @@
       if (!s || !s.alive || !s.charge) continue;
       const st = snakeType(s);
       const sp = snakePos(pipe, p, skyH);
-      const mx = sp.x - 39, my = sp.y - 4;
+      const mx = st.rear ? Math.max(sp.x - 39, 8) : sp.x - 39, my = sp.y - 4;
       const t = Math.min(1, (gameTime - s.charge.from) / st.windup);
       ctx.strokeStyle = 'rgba(90,170,255,' + (0.4 + 0.6 * t).toFixed(2) + ')';
       ctx.lineWidth = 2 + 2 * t;
