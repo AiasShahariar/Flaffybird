@@ -16,27 +16,9 @@ A roguelike Flappy Bird — one self-contained HTML file, no dependencies, no bu
   sun. Pipes turn to bamboo, and it stays that way from here on.
 - **50+** — snake ambush. You get 10 HP and a katana; armed snakes on the
   pipes shoot at you for 1 damage each. Time the **PARRY** button to deflect
-  a bullet back and kill the snake for $5. A new breed joins every 10 points,
-  all the way to 160. **Each breed gets those 10 points to itself** — it's the
-  only snake that spawns while you're in its stretch, so you get to learn it
-  clean. Past 170 every breed you've unlocked mixes together.
-
-## The snakes
-
-| Score | Breed | What it does |
-|---|---|---|
-| 50 | Vipers | Aimed shots |
-| 60 | Twin Fangs | Two heads, fires 2.5x as often |
-| 70 | Sight Adders | Shoots where you *will* be — change your mind to break the lock |
-| 80 | Ledge Crawlers | Fires at the ceiling, then skims along it. Get off the roof |
-| 90 | Splitfangs | Forks in two near you. Cut it early and the whole volley dies |
-| 100 | Rattlers | Three shots on a beat, then a rest. Don't press between beats |
-| 110 | Lantern Coils | Ignores you — parks and blocks one side of the gap |
-| 120 | Wraith Coils | Follows you, but turns slowly. Outclimb it |
-| 130 | Picket Adders | A slow wall of four. One cut takes all of them |
-| 140 | Ash Bloomers | Parks and grows. Cut it from arm's length |
-| 150 | Basilisks | A beam you **cannot** parry — pale and still, not red. Move |
-| 160 | Mirrorfangs | Blocks your parry while its guard is up. Wait for the ring to drop |
+  a bullet back and kill the snake for $5. **Vipers** own 50-59 and two-headed
+  **Twin Fangs** own 60-69, firing 2.5x as often; from 70 they mix. Every pipe
+  carries a snake.
 
 Gold carries over between runs and buys five permanent upgrades in the
 **Shop** — from Kingfisher's Patience at $60 up to Still Water at $1500.

@@ -24,34 +24,36 @@ Three progression phases, in order:
    click in desktop mode, or P/Enter) opens a 0.16s window that flips a bullet
    to `friendly`, which then homes back and kills its snake for gold.
 
-   **`SNAKE_TYPES` is a 12-row table**, one breed unlocking every 10 points from
-   50 to 160. Each row is `{ id, from, name, tip, heads, rate, cost, shot, body,
-   mark, girth, ...params }`. `shot` picks one case in `fireSnake()`; motion
-   picks one case in `stepKind()`; `girth` scales the drawn spine (hue alone
-   fails the squint test at twelve breeds). Deleting a breed is: its row, its
-   `fireSnake` case, its `stepKind` case if any, and its draw case.
+   **`SNAKE_TYPES` is the extension point** — currently two rows, vipers at 50
+   and two-headed Twin Fangs at 60 firing 2.5x as often. A row is `{ id, from,
+   name, tip, heads, rate, shot, body, mark }`; `shot` picks a case in
+   `fireSnake()`, `rate` divides the shot interval, `heads` drives both the fork
+   in `drawSnake` and the alternating muzzle in the firing block (both read
+   `headOffset()`, which is why they stay in sync).
 
-   Five bullet kinds total — `crawl`, `split`, `park`, `home`, `guard` — plus
-   `hazards[]` for the unparryable beam. **Beams deliberately live outside
-   `bullets[]`**: in it they'd need a parry-loop guard, a branched hit test, a
-   cap exemption and a cull exemption, four leaks for one breed.
+   Ten further breeds with distinct projectiles (predictive lane, ceiling
+   skimmer, splitter, burst, parked blocker, homer, wall, growing disc,
+   unparryable beam, guarded shooter) were built and then cut on request — see
+   commit 375a892 if any of them is ever wanted back.
 
-   Four rules the roster depends on:
-   - **Threat cost, not sprite count.** `cost` gates firing; a volley leader
-     pre-reserves the whole volley (picket 4, splitter 2) and members cost 0.
-     `threat` must be `let` and incremented as we fire — as a hoisted `const`,
-     N snakes fired against one stale read and overshot the cap.
-   - **`pressure` normalises pool dilution.** Equal-odds spawning means each
-     breed added lowers the pool's mean fire rate; measured, difficulty *peaked
-     at score 65* and halved by 130. `pressure` divides by the live pool's mean
-     rate against `BASE_MEAN_RATE`, so adding a breed needs no re-tuning.
-   - **No firing from offscreen-left** (`mx < 8`) and none under the PARRY
-     button. Shots used to spawn 67px off-screen — the single most-hated enemy
-     design in the research.
+   Rules that survive regardless of roster size:
    - **Solo stretches.** Each breed owns the 10 points from its own threshold
-     (`soloBreedFor`): inside that range it is the ONLY thing that spawns, so
-     you meet it clean. Past the last breed's stretch (170+) every unlocked
-     breed spawns with equal odds. A snake goes on **every** pipe.
+     (`soloBreedFor`): inside that range it is the ONLY thing that spawns. Past
+     the last breed's stretch every unlocked breed spawns with equal odds. A
+     snake goes on **every** pipe.
+   - **Threat cost, not sprite count.** `threat` must be `let` and incremented
+     as we fire — as a hoisted `const`, N snakes fired against one stale read
+     and overshot the cap of 4.
+   - **No firing from offscreen-left** (`mx < 8`) or from under the PARRY
+     button. Shots used to spawn 67px off-screen.
+   - **`pressure`** raises the fire rate with score. Its dilution term applies
+     to **mixed pools only** — in a solo stretch `meanRate` *is* that breed's
+     rate, so dividing by it cancels `rate` algebraically and flattens every
+     breed to one cadence.
+   - **The `landing` gate is the real ceiling.** It blocks any new shot while
+     one is within 0.5s of arriving, so no two arrivals can land inside one
+     0.45s parry cooldown. With a snake on every pipe this serialises arrivals
+     to roughly 0.6/s and matters far more than any breed's `rate`.
 
    Parry reach is `p.parryR`, absolute — **never** `bird.r * 4.2`.
    `applyCheckpoint()` grants Hummingbird Form, which shrank reach from 80px to

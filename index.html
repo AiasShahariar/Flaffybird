@@ -427,45 +427,14 @@
   // A new breed joins the pool every 10 points. Once unlocked a type never
   // leaves, and every unlocked type is equally likely to spawn — so adding a
   // breed is one entry here plus its colours; the spawn picker needs no change.
-  // `shot` selects one case in fireSnake(); `cost` is the breed's share of the
-  // threat cap (a volley leader pre-reserves the whole volley, members cost 0);
-  // `girth` scales the drawn spine — hue alone fails the squint test at 12 breeds.
+  // `shot` selects one case in fireSnake(); `rate` divides the shot interval.
   const SNAKE_TYPES = [
-    { id: 'viper',  from: SNAKE_SCORE, name: 'Vipers', tip: 'Parry their bullets back at them!',
-      heads: 1, rate: 1.0,  cost: 1, shot: 'aimed',  body: '#8a5bb8', mark: '#5e3a8c', girth: 1.0 },
-    { id: 'twin',   from: 60,  name: 'Twin Fangs', tip: '2 heads, and they fire far faster',
-      heads: 2, rate: 2.5,  cost: 1, shot: 'aimed',  body: '#b8455b', mark: '#7d2438', girth: 1.0 },
-    { id: 'lancer', from: 70,  name: 'Sight Adders', tip: 'It shoots where you WILL be',
-      heads: 1, rate: 0.8,  cost: 1, shot: 'lane',   body: '#3f7fd8', mark: '#1c4a86', girth: 0.9,
-      windup: 0.55, bv: 1.6, err: 0.10 },
-    { id: 'crawler', from: 80, name: 'Ledge Crawlers', tip: 'Get off the ceiling',
-      heads: 1, rate: 0.9,  cost: 1, shot: 'crawl',  body: '#2f8f7d', mark: '#134238', girth: 0.8,
-      heavy: true, skim: 0.85, wy: 22 },
-    { id: 'splitter', from: 90, name: 'Splitfangs', tip: 'Cut it before it forks',
-      heads: 1, rate: 0.8,  cost: 2, shot: 'split',  body: '#d0d8e8', mark: '#6b7688', girth: 1.0,
-      bv: 0.85, spread: 0.30, shardV: 1.1 },
-    { id: 'rattler', from: 100, name: 'Rattlers', tip: 'Three on the beat',
-      heads: 1, rate: 0.75, cost: 1, shot: 'burst',  body: '#a8c93f', mark: '#4f6b10', girth: 1.2,
-      burst: 3, beat: 0.55, rest: 2.6 },
-    { id: 'lantern', from: 110, name: 'Lantern Coils', tip: 'It blocks one side of the gap',
-      heads: 1, rate: 0.9,  cost: 1, shot: 'park',   body: '#c94f9a', mark: '#7a2159', girth: 1.0,
-      heavy: true, bv: 0.5, off: 0.30, hold: 2.4 },
-    { id: 'wraith', from: 120, name: 'Wraith Coils', tip: 'It follows — outclimb it',
-      heads: 1, rate: 0.7,  cost: 1, shot: 'home',   body: '#23323c', mark: '#0d1820', girth: 0.8,
-      bv: 0.62, turn: 2.0, life: 1.4 },
-    { id: 'picket', from: 130, name: 'Picket Adders', tip: 'One cut takes the whole wall',
-      heads: 1, rate: 0.7,  cost: 4, shot: 'picket', body: '#7f8ba0', mark: '#3c4657', girth: 1.5,
-      heavy: true, n: 4, pitch: 0.24, off: 0.34, bv: 0.62 },
-    { id: 'bloom',  from: 140, name: 'Ash Bloomers', tip: "Cut it from arm's length",
-      heads: 1, rate: 0.7,  cost: 2, shot: 'bloom',  body: '#4b2f7a', mark: '#1d1136', girth: 1.3,
-      heavy: true, solo: true, bv: 0.45, park: 0.8, grow: 0.7, maxR: 2.1, life: 1.2 },
-    { id: 'basilisk', from: 150, name: 'Basilisks', tip: 'Cannot be cut — leave the line',
-      heads: 1, rate: 0.7,  cost: 0, shot: 'beam',   body: '#d8d2c4', mark: '#8a8478', girth: 1.1,
-      heavy: true, solo: true, charge: 0.9, live: 0.30, band: 14 },
-    { id: 'mirror', from: 160, name: 'Mirrorfangs', tip: 'Ringed shots get blocked — wait',
-      heads: 1, rate: 0.9,  cost: 1, shot: 'guard',  body: '#1f4a6b', mark: '#0c2438', girth: 1.4,
-      guardPeriod: 1.4, guardUp: 0.75, bounceV: 1.1 },
+    { id: 'viper', from: SNAKE_SCORE, name: 'Vipers', tip: 'Parry their bullets back at them!',
+      heads: 1, rate: 1.0, shot: 'aimed', body: '#8a5bb8', mark: '#5e3a8c' },
+    { id: 'twin',  from: 60, name: 'Twin Fangs', tip: '2 heads, and they fire far faster',
+      heads: 2, rate: 2.5, shot: 'aimed', body: '#b8455b', mark: '#7d2438' },
   ];
+
   // `until` is supported as a retirement lever but deliberately unset: every
   // unlocked breed stays in the pool with equal odds. `pressure` carries the
   // difficulty curve instead, so adding breeds never quietly deletes older ones.
@@ -493,11 +462,7 @@
   let goldRun = 0;
   try { goldTotal = parseInt(localStorage.getItem('flappy-gold'), 10) || 0; } catch (e) {}
   const bullets = [];      // { x, y, vx, vy, friendly, pipe, k?, cost?, rad?, ... }
-  // Beams are not projectiles: they never home, never flip, never cull positionally.
-  // Keeping them out of bullets[] is what makes the basilisk a two-line delete
-  // instead of five `continue` guards leaking across the bullet loops.
-  const hazards = [];      // { y, t, charge, live, band }
-  let lastIds = [], lastHeavy = false;  // anti-repeat, mirroring Slay the Spire's 3-window
+  let lastIds = [];        // anti-repeat on consecutive spawns
   let healReady = -10, stillUntil = -10;
   let parryWindowUntil = -10, parryCooldownUntil = -10, swingStart = -10;
   let bulletImmuneUntil = -10;
@@ -595,8 +560,7 @@
     popups.length = 0;
     history.length = 0;
     bullets.length = 0;
-    hazards.length = 0;
-    lastIds = []; lastHeavy = false;
+    lastIds = [];
     healReady = -10; stillUntil = -10;
     for (const u of UPGRADES) delete has[u.id];
     nextUpgradeScore = 5;
@@ -761,14 +725,12 @@
     groundOffset = snap.groundOffset;
     pipes.length = 0;
     for (const pp of snap.pipes) {
-      // Wind-up state must be stripped: doRewind does NOT rewind gameTime, so a
-      // restored charge.at sits in the past and the snake fires instantly off a
-      // stale lock with no telegraph ever drawn.
+      // doRewind does not rewind gameTime, so a restored nextShot in the past
+      // would fire instantly — reroll it.
       pipes.push({ x: pp.x, gapC: pp.gapC, scored: pp.scored,
-                   snake: pp.snake ? { ...pp.snake, charge: null, burst: 0, nextShot: 0 } : undefined });
+                   snake: pp.snake ? { ...pp.snake, nextShot: 0 } : undefined });
     }
     bullets.length = 0;
-    hazards.length = 0;
     history.length = 0;
     perched = false;
     invulnUntil = gameTime + 1.2;
@@ -808,161 +770,12 @@
     return { x: pipe.x, y };
   }
 
-  // ---------- per-bullet motion, one case per kind ----------
-  // Only ever called for hostile bullets: on parry, b.k is nulled so every
-  // deflected round becomes the identical homing knife however it arrived.
-  function stepKind(b, dt, p, skyH) {
-    switch (b.k) {
-      case 'crawl':
-        if (!b.stuck && b.y <= b.wy) {
-          b.y = b.wy; b.stuck = 1; b.vy = 0; b.vx = -p.bulletV * b.skim;
-          for (let i = 0; i < 3; i++) {
-            particles.push({ x: b.x, y: b.y, vx: -40 + Math.random() * 80, vy: Math.random() * 60,
-                             life: 0.25, c: '#ffffff' });
-          }
-        }
-        break;
-      case 'split': {
-        // Anchor the fork on DISTANCE to the bird, not elapsed time: firing distance
-        // varies hugely with pipe.x, so a fixed-time split lands anywhere.
-        if (Math.hypot(b.x - bird.x, b.y - bird.y) < p.parryR * 1.55) {
-          const h = Math.atan2(b.vy, b.vx), v = p.bulletV * b.shardV;
-          for (const d of [-b.spread, b.spread]) {
-            bullets.push({ x: b.x, y: b.y, vx: Math.cos(h + d) * v, vy: Math.sin(h + d) * v,
-                           friendly: false, pipe: b.pipe, breed: b.breed, cost: 0, rad: 4.5 });
-          }
-          return 'gone';
-        }
-        break;
-      }
-      case 'park': {
-        if (b.growTo != null) {                       // bloom
-          if (!b.parked && gameTime >= b.parkAt) { b.parked = 1; b.t0 = gameTime; b.vx = -p.speed; b.vy = 0; }
-          if (b.parked) {
-            b.rad = p.R0 * 0.35 + (b.growTo - p.R0 * 0.35) * Math.min(1, (gameTime - b.t0) / b.grow);
-            if (gameTime >= b.t0 + b.life) return 'gone';
-          }
-        } else {                                      // lantern
-          const tx = b.pipe.x + b.ox, ty = b.pipe.gapC * skyH + b.oy;
-          if (!b.parked && Math.hypot(tx - b.x, ty - b.y) < 12) { b.parked = 1; b.until = gameTime + b.hold; }
-          if (b.parked) {
-            b.x = tx; b.y = ty; b.vx = 0; b.vy = 0;   // position-authoritative while parked
-            if (gameTime >= b.until) return 'gone';
-          }
-        }
-        break;
-      }
-      case 'home':
-        if (b.life > 0) {
-          b.life -= dt;
-          const want = Math.atan2(bird.y - b.y, bird.x - b.x);
-          let a = Math.atan2(b.vy, b.vx);
-          const d = ((want - a + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-          a += Math.max(-b.turn * dt, Math.min(b.turn * dt, d));
-          b.vx = Math.cos(a) * b.spd; b.vy = Math.sin(a) * b.spd;
-          if (!b.trail) b.trail = [];
-          b.trail.push(b.x, b.y);
-          if (b.trail.length > 20) b.trail.splice(0, 2);
-        }
-        break;
-      case 'guard':
-        b.guard = ((gameTime + b.phase) % 1.4) < 0.75;
-        break;
-    }
-    return null;
-  }
-
-  // ---------- snake firing: one case per breed ----------
-  // Returns false to decline the shot (the caller then skips cadence advance).
+  // ---------- snake firing ----------
+  // One case for now; a new breed is a `shot` value plus a case here.
   function fireSnake(pipe, s, st, sp, mx, my, p, skyH) {
-    const gapY = pipe.gapC * skyH;
-    const shoot = (o) => {
-      bullets.push(Object.assign({ x: mx, y: my, friendly: false, pipe, breed: st.id, cost: 1 }, o));
-    };
-    const aimed = (mult, extra) => {
-      const ang = Math.atan2(bird.y - my, bird.x - mx);
-      const v = p.bulletV * (mult || 1);
-      shoot(Object.assign({ vx: Math.cos(ang) * v, vy: Math.sin(ang) * v }, extra || {}));
-    };
-
-    switch (st.shot) {
-      case 'lane': {
-        // Predictive: lock the bird's EXTRAPOLATED y, telegraph the lane, then snap.
-        if (!s.charge) {
-          const L = st.windup;
-          let py = bird.y + bird.vy * L + 0.5 * p.gravity * L * L +
-                   (Math.random() * 2 - 1) * st.err * p.gap;
-          py = Math.max(18, Math.min(skyH - 18, py));
-          s.charge = { y: py, at: gameTime + L, from: gameTime, mx };
-          return false;                    // telegraph frame — don't advance cadence
-        }
-        if (gameTime < s.charge.at) return false;
-        const y = s.charge.y;
-        s.charge = null;
-        bullets.push({ x: mx, y, vx: -p.bulletV * st.bv, vy: 0, friendly: false, pipe, breed: st.id, cost: 1 });
-        break;
-      }
-      case 'crawl':
-        // Fires AWAY from you at the ceiling, then skims left along it.
-        shoot({ vx: -p.bulletV * 0.35, vy: -p.bulletV * 0.9, k: 'crawl', wy: st.wy, skim: st.skim });
-        break;
-      case 'split':
-        aimed(st.bv, { k: 'split', cost: 2, spread: st.spread, shardV: st.shardV });
-        break;
-      case 'burst':
-        if (s.burst <= 0) s.burst = st.burst;
-        aimed(1);
-        s.burst--;
-        break;
-      case 'park': {
-        // Ignores you entirely — parks off one side of the gap and denies that lane.
-        const sgn = bird.y < gapY ? 1 : -1;
-        const ox = p.pipeW * 0.5, oy = sgn * st.off * p.gap;
-        const tx = pipe.x + ox, ty = gapY + oy;
-        const a = Math.atan2(ty - my, tx - mx), v = p.bulletV * st.bv;
-        shoot({ vx: Math.cos(a) * v, vy: Math.sin(a) * v, k: 'park', ox, oy, hold: st.hold });
-        break;
-      }
-      case 'home':
-        aimed(st.bv, { k: 'home', turn: st.turn, life: st.life, spd: p.bulletV * st.bv });
-        break;
-      case 'picket': {
-        // One event pushes a slow wall on the side away from the next gap centre.
-        const away = bird.y < gapY ? -1 : 1;
-        const y0 = Math.max(20, Math.min(skyH - 20, bird.y + away * st.off * p.gap));
-        for (let i = 0; i < st.n; i++) {
-          const y = y0 + away * i * st.pitch * p.gap;
-          if (y < 10 || y > skyH - 10) continue;
-          bullets.push({ x: mx, y, vx: -p.bulletV * st.bv, vy: 0, friendly: false,
-                         pipe, breed: st.id, cost: i === 0 ? st.n : 0 });
-        }
-        break;
-      }
-      case 'bloom': {
-        // Parks, then grows a disc. Max radius is held under half the parry reach
-        // so there is always an annulus where you can cut it without being inside it.
-        const ty = Math.max(24, Math.min(skyH - 24, bird.y + bird.vy * 0.5));
-        const a = Math.atan2(ty - my, bird.x - mx), v = p.bulletV * st.bv;
-        shoot({ vx: Math.cos(a) * v, vy: Math.sin(a) * v, k: 'park', cost: 2,
-                parkAt: gameTime + st.park, growTo: Math.min(p.R0 * st.maxR, p.parryR * 0.5),
-                grow: st.grow, life: st.life, rad: p.R0 * 0.35 });
-        break;
-      }
-      case 'beam': {
-        // Unparryable by design — so it must never remove the player's only lane.
-        const nextPipe = pipes.find(pp => pp.x + p.pipeW > bird.x);
-        const beamY = sp.y;
-        if (nextPipe && Math.abs(beamY - nextPipe.gapC * skyH) < p.gap * 0.45) return false;
-        if (beamY < 24 || beamY > skyH - 24) return false;
-        hazards.push({ y: beamY, t: 0, charge: st.charge, live: st.live, band: st.band });
-        break;
-      }
-      case 'guard':
-        aimed(1, { k: 'guard', phase: s.phase, guard: false });
-        break;
-      default:
-        aimed(1);
-    }
+    const ang = Math.atan2(bird.y - my, bird.x - mx);
+    bullets.push({ x: mx, y: my, vx: Math.cos(ang) * p.bulletV, vy: Math.sin(ang) * p.bulletV,
+                   friendly: false, pipe, breed: st.id, cost: 1 });
     sfx.shoot();
     return true;
   }
@@ -1187,13 +1000,10 @@
         } else {
           t = pool[Math.floor(Math.random() * pool.length)];
           if (lastIds[0] === t.id && lastIds[1] === t.id) t = pool[Math.floor(Math.random() * pool.length)];
-          if (t.heavy && lastHeavy) t = pool[Math.floor(Math.random() * pool.length)];
         }
         lastIds = [t.id, lastIds[0]];
-        lastHeavy = !!t.heavy;
         pipe.snake = { type: t.id, side: Math.random() < 0.5 ? 'top' : 'bot',
-                       fy: Math.random(), alive: true, nextShot: 0, head: 0,
-                       phase: Math.random() * 1.4, charge: null, burst: 0 };
+                       fy: Math.random(), alive: true, nextShot: 0, head: 0 };
       }
       pipes.push(pipe);
     }
@@ -1223,16 +1033,21 @@
       // rate, so measured damage actually PEAKED at score 65 and fell by half by
       // 130. Cancel the dilution explicitly rather than with a hand-tuned constant:
       // this stays correct when the next breed is added, with nothing to re-tune.
+      // Mixed pools only. In a solo stretch the pool is one breed, so meanRate IS
+      // that breed's rate and dividing by it cancels `rate` algebraically — which
+      // would silently cost Twin Fangs its 2.5x.
       const livePool = snakeTypesFor(score);
-      const meanRate = livePool.reduce((a, t) => a + t.rate, 0) / livePool.length;
-      const dilution = Math.min(3, BASE_MEAN_RATE / Math.max(0.1, meanRate));
+      let dilution = 1;
+      if (!soloBreedFor(score) && livePool.length > 1) {
+        const meanRate = livePool.reduce((a, t) => a + t.rate, 0) / livePool.length;
+        dilution = Math.min(3, BASE_MEAN_RATE / Math.max(0.1, meanRate));
+      }
       const pressure = Math.min(4.5, (1 + Math.max(0, score - 60) * 0.006) * dilution);
       const btnX = parryPos.x / 100 * W, btnY = parryPos.y / 100 * H;
       // No double jeopardy: never open a second threat while one is already landing,
       // so two arrivals can't stack inside a single 0.45s parry cooldown.
-      // Gate on ARRIVAL TIME, not distance: the slow breeds (picket, bloom, lantern)
-      // sit inside a fixed radius for over a second and would suppress the whole
-      // screen. A parked round has no arrival at all and must never block.
+      // Gate on ARRIVAL TIME, not distance, so a slow round doesn't sit inside a
+      // fixed radius suppressing the whole screen.
       const landing = bullets.some(b => {
         if (b.friendly) return false;
         const sp = Math.hypot(b.vx, b.vy);
@@ -1250,36 +1065,16 @@
         if (mx < 8) continue;                    // never fire from offscreen-left
         // don't open a threat underneath the player's own thumb
         if (Math.hypot(mx - btnX, my - btnY) < 84) continue;
-        if (st.solo && bullets.some(b => !b.friendly && b.breed === st.id)) continue;
-        if (st.solo && st.shot === 'beam' && hazards.length) continue;
         if (!s.nextShot) { s.nextShot = gameTime + (0.35 + Math.random() * 0.45) / Math.max(1, st.rate); continue; }
-        if (landing && s.burst <= 0 && st.shot !== 'lane') continue;   // bursts own their own beat
+        if (landing) continue;
         if (gameTime < s.nextShot) continue;
         const cost = st.cost == null ? 1 : st.cost;
         if (threat + cost > CAP) continue;
         if (fireSnake(pipe, s, st, sp, mx, my, p, skyH) === false) continue;
         threat += cost;
         s.head = (s.head + 1) % st.heads;
-        if (s.burst > 0) s.nextShot = gameTime + (st.beat || 0.55);
-        else s.nextShot = gameTime + (1.6 + Math.random()) / (st.rate * pressure);
+        s.nextShot = gameTime + (1.6 + Math.random()) / (st.rate * pressure);
       }
-    }
-
-    // beams (hazards) — charge, fire, expire. Never parryable, never in bullets[].
-    for (let i = hazards.length - 1; i >= 0; i--) {
-      const h = hazards[i];
-      h.t += dt;
-      if (h.t >= h.charge && h.t < h.charge + h.live && state === PLAYING &&
-          Math.abs(bird.y - h.y) < h.band / 2 + bird.r * 0.55) {
-        if (gameTime >= bulletImmuneUntil && gameTime >= invulnUntil) {
-          hp--;
-          bulletImmuneUntil = gameTime + 0.6;
-          hurtFlash = 0.35;
-          sfx.hurt();
-          if (hp <= 0) { die(); return; }
-        }
-      }
-      if (h.t >= h.charge + h.live) hazards.splice(i, 1);
     }
 
     // parry window: deflect nearby enemy bullets back at their snakes
@@ -1290,11 +1085,7 @@
         const d = Math.hypot(b.x - bird.x, b.y - bird.y);
         if (d < p.parryR) {
           b.perfect = !!shopOwned.kingfisher && d < p.parryInner;
-          if (b.k === 'guard' && b.guard) b.blocked = true;   // decided at parry time, not arrival
-          // strip every custom motion state — otherwise a position-authoritative
-          // kind keeps overwriting the deflected round and it never flies home
-          b.friendly = true; b.k = null;
-          b.rad = 0; b.parked = 0; b.hold = 0; b.life = 0; b.stuck = 0; b.trail = null;
+          b.friendly = true;
           parried++;
           sfx.parry();
         }
@@ -1311,9 +1102,6 @@
     // bullets
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
-      if (!b.friendly && b.k) {
-        if (stepKind(b, dt, p, skyH) === 'gone') { bullets.splice(i, 1); continue; }
-      }
       if (b.friendly && b.pipe && b.pipe.snake && b.pipe.snake.alive && pipes.includes(b.pipe)) {
         // home in on the source snake
         const sp = snakePos(b.pipe, p, skyH);
@@ -1323,16 +1111,6 @@
         // bullet orbits forever, holding a threat slot and never paying out.
         const fv = Math.min(p.bulletV * (b.perfect ? 2.2 : 1.55), 17 / Math.max(dt, 1e-4));
         if (d < Math.max(18, fv * dt * 1.2)) {
-          if (b.blocked && !b.bounced) {
-            // Mirrorfang deflects it — comes back once as an ordinary red round
-            b.friendly = false; b.bounced = true; b.blocked = false; b.k = null;
-            const a = Math.atan2(bird.y - b.y, bird.x - b.x), rv = p.bulletV * 1.1;
-            b.vx = Math.cos(a) * rv; b.vy = Math.sin(a) * rv;
-            b.cost = 1; b.rad = 0;
-            hurtFlash = Math.max(hurtFlash, 0.12);
-            sfx.shieldBreak();
-            continue;
-          }
           killSnake(b.pipe, sp, b);
           if (shopOwned.ricochet && !b.chained) {
             // one hop, ever — retarget by scanning pipes directly so a shifted
@@ -1350,7 +1128,7 @@
       b.x += b.vx * dt;
       b.y += b.vy * dt;
       if (!b.friendly && state === PLAYING &&
-          Math.hypot(b.x - bird.x, b.y - bird.y) < bird.r * 0.95 + (b.rad || 4)) {
+          Math.hypot(b.x - bird.x, b.y - bird.y) < bird.r * 0.95 + 4) {
         bullets.splice(i, 1);
         if (gameTime >= bulletImmuneUntil && gameTime >= invulnUntil) {
           hp--;
@@ -1508,21 +1286,6 @@
       ctx.restore();
     }
 
-    // beams: charge is a thin pale band, live is a solid bar. Deliberately breaks
-    // every rule the player learned about threats — no red, no pulse, no motion,
-    // no round shape — so "unparryable" is learnable without any text.
-    for (const h of hazards) {
-      const live = h.t >= h.charge;
-      const a = live ? 1 : 0.5 + 0.45 * Math.min(1, h.t / h.charge);
-      ctx.globalAlpha = a;
-      ctx.fillStyle = '#d8d2c4';
-      ctx.fillRect(0, h.y - (live ? h.band / 2 : 2), W, live ? h.band : 4);
-      ctx.strokeStyle = '#1a1226';
-      ctx.lineWidth = live ? 2 : 1;
-      ctx.strokeRect(0, h.y - (live ? h.band / 2 : 2), W, live ? h.band : 4);
-      ctx.globalAlpha = 1;
-    }
-
     // parry reach — turns the cooldown into a visible resource and is what makes
     // the growing-disc and wall breeds readable at all
     if (snakePhase && state === PLAYING) {
@@ -1542,30 +1305,6 @@
       }
     }
 
-    // per-breed telegraphs drawn from the snake
-    for (const pipe of pipes) {
-      const s = pipe.snake;
-      if (!s || !s.alive) continue;
-      const st = snakeType(s);
-      if (st.shot === 'lane' && s.charge) {          // predictive lane
-        const el = Math.min(1, (gameTime - s.charge.from) / st.windup);
-        ctx.globalAlpha = 0.4 + 0.5 * el;
-        ctx.fillStyle = '#3f7fd8';
-        ctx.fillRect(0, s.charge.y - 2, s.charge.mx, 4);
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(s.charge.mx - el * s.charge.mx - 3, s.charge.y - 3, 6, 6);
-        ctx.globalAlpha = 1;
-      }
-      if (st.shot === 'burst' && s.burst > 0) {      // remaining rounds, at the BIRD
-        for (let i = 0; i < st.burst; i++) {         // (a bottom snake sits under the thumb)
-          ctx.fillStyle = i < s.burst ? '#a8c93f' : 'rgba(255,255,255,0.25)';
-          ctx.beginPath();
-          ctx.arc(bird.x - 34, bird.y - 10 + i * 10, 3, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-    }
-
     // bullets — one clock for every enemy round, so they blink in unison and
     // read as a single warning signal rather than random flicker
     const bt = performance.now();
@@ -1581,74 +1320,17 @@
         ctx.fill();
         ctx.stroke();
       } else {
-        // lantern destination ring — published the instant it fires, 0.8s of warning
-        if (b.k === 'park' && b.growTo == null && b.pipe) {
-          ctx.strokeStyle = 'rgba(201,79,154,0.55)';
-          ctx.lineWidth = 3;
-          const shrink = b.parked ? Math.max(0.35, Math.min(1, (b.until - gameTime) / 0.5)) : 1;
-          ctx.beginPath();
-          ctx.arc(b.pipe.x + b.ox, b.pipe.gapC * skyH + b.oy, 13 * shrink, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-        // bloom footprint — the FINAL radius is drawn before the disc reaches it
-        if (b.k === 'park' && b.growTo != null && b.parked) {
-          ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.arc(b.x, b.y, b.growTo, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-        // wraith trail — the one trail in the roster, drawn as a single polyline
-        if (b.k === 'home' && b.trail && b.trail.length >= 4) {
-          ctx.globalAlpha = 0.35;
-          ctx.strokeStyle = '#7f8fa8';
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.moveTo(b.trail[0], b.trail[1]);
-          for (let j = 2; j < b.trail.length; j += 2) ctx.lineTo(b.trail[j], b.trail[j + 1]);
-          ctx.stroke();
-          ctx.globalAlpha = 1;
-        }
-        // ceiling crawler — stripe running ahead of it along the ledge
-        if (b.k === 'crawl' && b.stuck) {
-          ctx.fillStyle = 'rgba(255,40,40,0.5)';
-          ctx.fillRect(b.x - 40, b.wy - 2, 40, 4);
-        }
-        const R = b.rad && b.rad > 4 ? b.rad : 6.5;
         ctx.fillStyle = 'rgba(255,40,40,' + halo.toFixed(3) + ')';
         ctx.beginPath();
-        ctx.arc(b.x, b.y, R + 8.5, 0, Math.PI * 2);
+        ctx.arc(b.x, b.y, 15, 0, Math.PI * 2);
         ctx.fill();
+        ctx.beginPath();
         ctx.fillStyle = blink ? '#ff2020' : '#fff0f0';
         ctx.strokeStyle = blink ? '#5c0000' : '#ff2020';
         ctx.lineWidth = 2.5;
-        if (b.k === 'crawl' && !b.stuck) {          // square while airborne: it reads as "wrong way"
-          ctx.fillRect(b.x - R, b.y - R, R * 2, R * 2);
-          ctx.strokeRect(b.x - R, b.y - R, R * 2, R * 2);
-        } else {
-          ctx.beginPath();
-          ctx.arc(b.x, b.y, R, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
-        }
-        // splitter seam — white line across the parent, opening as the fork nears
-        if (b.k === 'split') {
-          const h = Math.atan2(b.vy, b.vx);
-          ctx.strokeStyle = '#fff';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(b.x + Math.cos(h + Math.PI / 2) * R, b.y + Math.sin(h + Math.PI / 2) * R);
-          ctx.lineTo(b.x - Math.cos(h + Math.PI / 2) * R, b.y - Math.sin(h + Math.PI / 2) * R);
-          ctx.stroke();
-        }
-        // mirrorfang guard — the tell sits on the projectile, at the moment of decision
-        if (b.k === 'guard' && b.guard) {
-          ctx.strokeStyle = '#fff';
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.arc(b.x, b.y, 11, 0, Math.PI * 2);
-          ctx.stroke();
-        }
+        ctx.arc(b.x, b.y, 6.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
       }
     }
 
@@ -2081,10 +1763,7 @@
         y: 20 - t * 32 + Math.sin(t * 5 + ph) * 4.5 * (1 - t * 0.6),
       });
     }
-    // girth is the identity channel that survives a 390px screen — a 20x13px head
-    // cannot carry twelve distinguishable crests, and hue alone fails the squint test
-    const g = st.girth || 1;
-    const taper = t => (3 + 7 * Math.sin(Math.min(1, (t * fork / N) * 1.35) * Math.PI * 0.62)) * g;
+    const taper = t => 3 + 7 * Math.sin(Math.min(1, (t * fork / N) * 1.35) * Math.PI * 0.62);
     strokeChain(spine, st, taper);
 
     // diamond back markings along the shared spine
@@ -2112,8 +1791,8 @@
           y: a0.y + (tip.y - a0.y) * t + Math.sin(t * 3 + ph + h * 2) * 2.2 * (1 - t),
         });
       }
-      if (M > 1) strokeChain(neck, st, () => 9.2 * neckW * g);
-      drawSnakeHead(tip.x, tip.y, st, ph + h * 1.3, scale * (0.85 + g * 0.15));
+      if (M > 1) strokeChain(neck, st, () => 9.2 * neckW);
+      drawSnakeHead(tip.x, tip.y, st, ph + h * 1.3, scale);
     }
     ctx.restore();
   }
