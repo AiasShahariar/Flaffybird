@@ -383,6 +383,12 @@
     smash()       { tone(180, 60, 0.20, 'sawtooth', 0.25, 0); tone(900, 200, 0.12, 'square', 0.15, 0); },
     rewind()      { tone(250, 1500, 0.35, 'sine', 0.20, 0); },
       recharge()    { tone(700, 1050, 0.09, 'sine', 0.12, 0); },
+    // Woodpecker Beak coming back: three quick knocks on wood, then a bright
+    // chime. Deliberately not sfx.recharge — the shield and Second Wind use that.
+    beakReady()   { tone(1500, 620, 0.035, 'square',   0.13, 0);
+                    tone(1500, 620, 0.035, 'square',   0.13, 0.065);
+                    tone(1500, 620, 0.035, 'square',   0.13, 0.13);
+                    tone(880, 1760, 0.18,  'triangle', 0.15, 0.21); },
     tick()        { tone(1000, 1400, 0.06, 'sine', 0.10, 0); },
     swing()       { tone(500, 180, 0.10, 'triangle', 0.12, 0); },
     parry()       { tone(1800, 900, 0.08, 'square', 0.20, 0); tone(2600, 2600, 0.05, 'sine', 0.15, 0.02); },
@@ -732,7 +738,7 @@
       }
     }
     if (has.peck && !peckReady && ++peckCharge >= RECHARGE_PIPES) {
-      peckReady = true; peckCharge = 0; sfx.recharge();
+      peckReady = true; peckCharge = 0; sfx.beakReady();
     }
   }
 

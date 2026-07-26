@@ -130,6 +130,8 @@ exactly, so nothing below 46 changed.
   `devStart(n)` — full upgrade kit, snake phase armed, full HP, zone synced,
   `breedsSeen` pre-set so unlock banners don't replay. Each lands inside a
   different breed's solo stretch for testing.
+- **Woodpecker Beak has its own recharge sound** (`sfx.beakReady`, three knocks
+  into a chime). The shield restore and Second Wind still share `sfx.recharge`.
 - **No sound on passing a pipe.** `sfx.score` is deliberately gone, definition
   and call site both — do not reintroduce it.
 - **Persisted keys** (all localStorage, all optional/try-wrapped):
