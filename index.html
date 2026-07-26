@@ -266,9 +266,12 @@
       <button id="devModeBtn" type="button">Dev Mode</button>
     </div>
     <div id="devPanel" class="hidden">
-      <div class="set-hint">Start at score 45 with every upgrade already collected.</div>
+      <div class="set-hint">Jump straight in with every upgrade collected. Each score drops you into that breed's solo stretch.</div>
       <div class="set-row">
         <button id="dev45Btn" type="button">45</button>
+        <button id="dev70Btn" type="button">70</button>
+        <button id="dev100Btn" type="button">100</button>
+        <button id="dev130Btn" type="button">130</button>
       </div>
     </div>
   </div>
@@ -469,6 +472,12 @@
   function snakeTypesFor(s) {
     return SNAKE_TYPES.filter(t => s >= t.from && (t.until == null || s < t.until));
   }
+  // Each breed owns the 10 points from its own threshold: inside that stretch it
+  // is the ONLY thing that spawns, so you meet it clean before it joins the mix.
+  // Past the last breed's stretch every unlocked breed spawns with equal odds.
+  function soloBreedFor(s) {
+    return SNAKE_TYPES.find(t => s >= t.from && s < t.from + 10) || null;
+  }
   // mean fire rate of the starting pool (vipers + twins) — the yardstick the
   // pressure ramp normalises against so later, slower breeds don't quietly
   // make the late game calmer than score 65
@@ -488,7 +497,6 @@
   // Keeping them out of bullets[] is what makes the basilisk a two-line delete
   // instead of five `continue` guards leaking across the bullet loops.
   const hazards = [];      // { y, t, charge, live, band }
-  let forceId = null, forceCount = 0;   // forced introduction window for a new breed
   let lastIds = [], lastHeavy = false;  // anti-repeat, mirroring Slay the Spire's 3-window
   let healReady = -10, stillUntil = -10;
   let parryWindowUntil = -10, parryCooldownUntil = -10, swingStart = -10;
@@ -588,7 +596,7 @@
     history.length = 0;
     bullets.length = 0;
     hazards.length = 0;
-    forceId = null; forceCount = 0; lastIds = []; lastHeavy = false;
+    lastIds = []; lastHeavy = false;
     healReady = -10; stillUntil = -10;
     for (const u of UPGRADES) delete has[u.id];
     nextUpgradeScore = 5;
@@ -1121,7 +1129,6 @@
         bannerTitle = t.name.toUpperCase() + '!';
         bannerSub = t.tip || 'A new breed joins the ambush';
         bannerUntil = gameTime + 2.5;
-        forceId = t.id; forceCount = 2;   // teach it in isolation before it dilutes
         sfx.powerup();
       }
     }
@@ -1171,15 +1178,12 @@
         gapC: margin + Math.random() * (1 - 2 * margin),
         scored: false,
       };
-      if (snakePhase && Math.random() < 0.8) {
-        const pool = snakeTypesFor(score);          // every unlocked breed, equal odds
+      if (snakePhase) {
+        const solo = soloBreedFor(score);
+        const pool = solo ? [solo] : snakeTypesFor(score);   // solo stretch, else equal odds
         let t;
-        if (forceCount > 0 && SNAKE_TYPES.some(x => x.id === forceId)) {
-          // A new breed unlocks every 10 points, but past ~120 it is under 1/N of
-          // spawns — without this the player meets it less than once before the
-          // next one lands. Force the first two so it is always taught in isolation.
-          t = SNAKE_TYPES.find(x => x.id === forceId);
-          forceCount--;
+        if (solo) {
+          t = solo;                                          // its own 10 points
         } else {
           t = pool[Math.floor(Math.random() * pool.length)];
           if (lastIds[0] === t.id && lastIds[1] === t.id) t = pool[Math.floor(Math.random() * pool.length)];
@@ -2267,6 +2271,9 @@
   const desktopToggleBtn = document.getElementById('desktopToggleBtn');
   const devPanel = document.getElementById('devPanel');
   const dev45Btn = document.getElementById('dev45Btn');
+  const dev70Btn = document.getElementById('dev70Btn');
+  const dev100Btn = document.getElementById('dev100Btn');
+  const dev130Btn = document.getElementById('dev130Btn');
   const shopBtn = document.getElementById('shopBtn');
   const shopBtn2 = document.getElementById('shopBtn2');
   const shopScreen = document.getElementById('shopScreen');
@@ -2396,10 +2403,28 @@
     walletStartEl.textContent = goldTotal;
   }
 
-  // Dev Mode: jump straight to score 45 with the full upgrade kit
-  function devStart45() {
+  // Dev Mode: jump straight to any score with the full upgrade kit
+  function devStart(n) {
     closeSettings();
-    startGame(true);
+    startGame(true);                 // resets, grants all 9 upgrades, sets score 45
+    if (n > CHECKPOINT_SCORE) {
+      score = n;
+      nextUpgradeScore = n + 5;      // pool is fully owned; keep the chooser quiet
+      if (n >= SNAKE_SCORE) {
+        snakePhase = true;
+        maxHp = MAX_HP;
+        hp = maxHp;
+        parryBtn.classList.remove('hidden');
+      }
+      breedsSeen = snakeTypesFor(score).length;   // don't replay unlock banners
+      const solo = soloBreedFor(score);           // name what you're about to test
+      if (solo) {
+        bannerTitle = solo.name.toUpperCase() + '!';
+        bannerSub = solo.tip;
+        bannerUntil = gameTime + 2.5;
+      }
+      syncZoneInstant();
+    }
   }
 
   function primaryAction() {
@@ -2421,7 +2446,10 @@
       else if (t === resetPosBtn) { parryPos = { ...DEFAULT_POS }; applyParryPos(); }
       else if (t === settingsDoneBtn) closeSettings();
       else if (t === devModeBtn) devPanel.classList.toggle('hidden');
-      else if (t === dev45Btn) { ensureAudio(); devStart45(); }
+      else if (t === dev45Btn)  { ensureAudio(); devStart(45); }
+      else if (t === dev70Btn)  { ensureAudio(); devStart(70); }
+      else if (t === dev100Btn) { ensureAudio(); devStart(100); }
+      else if (t === dev130Btn) { ensureAudio(); devStart(130); }
       else if (t === desktopToggleBtn) {
         desktopControls = !desktopControls;
         try { localStorage.setItem(DESKTOP_KEY, desktopControls ? '1' : '0'); } catch (e2) {}

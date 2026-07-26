@@ -48,8 +48,10 @@ Three progression phases, in order:
    - **No firing from offscreen-left** (`mx < 8`) and none under the PARRY
      button. Shots used to spawn 67px off-screen — the single most-hated enemy
      design in the research.
-   - **`forceCount`** pins the first two spawns of a newly unlocked breed, so it
-     is taught in isolation instead of being 1/12 of the pool.
+   - **Solo stretches.** Each breed owns the 10 points from its own threshold
+     (`soloBreedFor`): inside that range it is the ONLY thing that spawns, so
+     you meet it clean. Past the last breed's stretch (170+) every unlocked
+     breed spawns with equal odds. A snake goes on **every** pipe.
 
    Parry reach is `p.parryR`, absolute — **never** `bird.r * 4.2`.
    `applyCheckpoint()` grants Hummingbird Form, which shrank reach from 80px to
@@ -89,6 +91,10 @@ exactly, so nothing below 46 changed.
   cross-fade advances on **raw** dt (presentational, one call site), while
   `bgScroll` advances on the Falcon-Focus-slowed dt at both `groundOffset` sites
   so parallax stays locked to the ground.
+- **Dev Mode** (Settings → Dev Mode) has 45 / 70 / 100 / 130 buttons calling
+  `devStart(n)` — full upgrade kit, snake phase armed, full HP, zone synced,
+  `breedsSeen` pre-set so unlock banners don't replay. Each lands inside a
+  different breed's solo stretch for testing.
 - **Persisted keys** (all localStorage, all optional/try-wrapped):
   `flappy-best`, `flappy-gold`, `flappy-shop`, `flappy-checkpoint`,
   `flappy-parry-pos`, `flappy-desktop`.

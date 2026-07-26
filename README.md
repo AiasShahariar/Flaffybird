@@ -17,8 +17,9 @@ A roguelike Flappy Bird — one self-contained HTML file, no dependencies, no bu
 - **50+** — snake ambush. You get 10 HP and a katana; armed snakes on the
   pipes shoot at you for 1 damage each. Time the **PARRY** button to deflect
   a bullet back and kill the snake for $5. A new breed joins every 10 points,
-  all the way to 160, and every breed you've unlocked is equally likely to
-  show up.
+  all the way to 160. **Each breed gets those 10 points to itself** — it's the
+  only snake that spawns while you're in its stretch, so you get to learn it
+  clean. Past 170 every breed you've unlocked mixes together.
 
 ## The snakes
 
