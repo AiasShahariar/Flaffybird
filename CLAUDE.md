@@ -24,9 +24,10 @@ Three progression phases, in order:
    click in desktop mode, or P/Enter) opens a 0.16s window that flips a bullet
    to `friendly`, which then homes back and kills its snake for gold.
 
-   **`SNAKE_TYPES` is the extension point** — currently three rows: vipers at 50,
-   two-headed Twin Fangs at 60 firing 2.5x as often, and XLR8 Snakes at 70 whose
-   round travels at 5x speed. A row is `{ id, from,
+   **`SNAKE_TYPES` is the extension point** — currently four rows: vipers at 50,
+   two-headed Twin Fangs at 60 firing 2.5x as often, XLR8 Snakes at 70 whose
+   round travels at 5x speed, and Bombardiers at 80 whose 3x round detonates on
+   a proximity fuse into a blast 4x its radius, lasting 1s. A row is `{ id, from,
    name, tip, heads, rate, shot, body, mark }`; `shot` picks a case in
    `fireSnake()`, `rate` divides the shot interval, and `heads` drives three
    things at once — the fork in `drawSnake`, the muzzle positions, and the
@@ -69,14 +70,27 @@ Three progression phases, in order:
      died just kept drifting forward as a harmless blue dot — common with
      two-round volleys, where the first kill orphans the second round. An
      orphaned round still cuts down any snake it passes.
+   - **Blasts live in `blasts[]`, not `bullets[]`** — area, not projectile, so
+     they never home, flip or cull positionally. Each damages once (`hit`), never
+     ticking across its whole 1s life.
    - **The `landing` gate is the real ceiling.** It blocks any new shot while
      one is within 0.5s of arriving, so no two arrivals can land inside one
      0.45s parry cooldown. With a snake on every pipe this serialises arrivals
      to roughly 0.6/s and matters far more than any breed's `rate`.
 
-   Parry reach is `p.parryR`, absolute — **never** `bird.r * 4.2`.
-   `applyCheckpoint()` grants Hummingbird Form, which shrank reach from 80px to
-   49px on the standard route into the phase.
+   Parry reach is `p.parryR` (`R0 * 2.1`), absolute — **never** derived from
+   `bird.r`. `applyCheckpoint()` grants Hummingbird Form, which shrinks the bird,
+   and deriving reach from it silently halved the parry on the standard route.
+
+   `p.parryInner` is Stormcutter's last-moment band and **must stay outside the
+   bird's own hit radius** (`bird.r * 0.95 + 4`). At `R0 * 0.75` it sat inside
+   it, so the round damaged you before it could ever enter the band and the item
+   could never fire. `R0 * 1.75` leaves a ~40-64ms press window.
+
+   **Dash** unlocks at `DASH_SCORE` (80): a 0.16s forward lunge that eases home,
+   on a 1s cooldown, with i-frames covering the lunge *and* the ease-back so it
+   can never drop you inside a pipe. Right click on desktop, Shift on keyboard,
+   or the draggable DASH button, whose conic-gradient fills as it recharges.
 
 Cutting across all of that: **background zones**, a purely cosmetic layer keyed
 off score. `ZONES` is a table of `{ from, sky, cloud, sand, grass, horizon,

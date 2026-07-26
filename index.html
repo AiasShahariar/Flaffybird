@@ -151,6 +151,30 @@
   }
   #parryBtn:active { transform: translate(-50%, -50%) scale(.92); }
 
+  #dashBtn {
+    position: fixed;
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #fff;
+    background: rgba(60, 130, 210, 0.9);
+    border: 3px solid #543847;
+    box-shadow: 0 4px 0 rgba(0,0,0,.3);
+    cursor: pointer;
+    touch-action: none;
+    z-index: 60;
+    -webkit-user-select: none;
+    user-select: none;
+    overflow: hidden;
+  }
+  #dashBtn:active { transform: translate(-50%, -50%) scale(.92); }
+  /* cooldown sweeps away as the dash recharges */
+  #dashBtn.cooling { background: rgba(60, 130, 210, 0.35); color: rgba(255,255,255,0.55); }
+
   #settingsScreen {
     background: rgba(46, 32, 54, .35);
     justify-content: flex-start;
@@ -220,6 +244,7 @@
 <body>
 <canvas id="game"></canvas>
 <button id="parryBtn" type="button" class="hidden">PARRY</button>
+<button id="dashBtn" type="button" class="hidden">DASH</button>
 
 <div id="startScreen" class="overlay">
   <div class="title">Flappy Bird</div>
@@ -325,6 +350,8 @@
   document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
   document.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
   document.addEventListener('gesturestart', e => e.preventDefault());
+  // right click is the desktop dash, so the browser menu must not eat it
+  document.addEventListener('contextmenu', e => e.preventDefault());
 
   // ---------- sound (Web Audio, no files) ----------
   let audioCtx = null;
@@ -389,7 +416,10 @@
   // lives where its system is (kingfisher in the parry loop and killSnake,
   // secondwind in killSnake, ricochet in the friendly-arrival branch, crossguard
   // after the parry loop, stillwater on the dt scale), so nothing else rewires.
-  const SHOP_ITEMS = [];
+  const SHOP_ITEMS = [
+    { id: 'stormcutter', name: 'Stormcutter', price: 500,
+      desc: 'Parry at the very last moment and the blade throws lightning instead — it kills, and heals you 1 HP.' },
+  ];
   let shopOwned = {};
   try { shopOwned = JSON.parse(localStorage.getItem('flappy-shop')) || {}; } catch (e) {}
   // Past purchases stay in localStorage so they come back with the item, but an
@@ -420,6 +450,9 @@
     { id: 'xlr8',  from: 70, name: 'XLR8 Snakes', tip: 'It charges, then fires FAST — parry on the flash',
       heads: 1, rate: 1.3, shot: 'dash', body: '#2f6fd8', mark: '#123a7a',
       bv: 5, windup: 0.45, rear: true },
+    { id: 'boomer', from: 80, name: 'Bombardiers', tip: 'Cut it early — the blast is bigger than the round',
+      heads: 1, rate: 1.0, shot: 'boom', body: '#d86a2f', mark: '#7a3410',
+      bv: 3, fuse: 30, blast: 26, blastLife: 1.0 },
   ];
 
   // `until` is supported as a retirement lever but deliberately unset: every
@@ -449,8 +482,14 @@
   let goldRun = 0;
   try { goldTotal = parseInt(localStorage.getItem('flappy-gold'), 10) || 0; } catch (e) {}
   const bullets = [];      // { x, y, vx, vy, friendly, pipe, k?, cost?, rad?, ... }
+  // Blasts are area, not projectiles: they never home, flip, or cull positionally,
+  // so keeping them out of bullets[] avoids guards leaking through every loop.
+  const blasts = [];       // { x, y, r, t, life, hit }
+  const bolts = [];        // { x1, y1, x2, y2, t } — Stormcutter lightning
   let lastIds = [];        // anti-repeat on consecutive spawns
   let healReady = -10, stillUntil = -10;
+  const DASH_SCORE = 80, DASH_CD = 1.0, DASH_TIME = 0.16, DASH_DIST = 62;
+  let dashUntil = -10, dashCooldownUntil = -10, dashFrom = 0, dashPhase = 0;
   let parryWindowUntil = -10, parryCooldownUntil = -10, swingStart = -10;
   let bulletImmuneUntil = -10;
   let hurtFlash = 0;
@@ -522,8 +561,12 @@
       // grants all 9 upgrades including Hummingbird Form (birdR * 0.62), so deriving
       // reach from bird.r silently cut it from 80px to 49px on the standard route
       // into the snake phase — every breed below is tuned against the full reach.
-      parryR:     R0 * 4.2,
-      parryInner: R0 * 2.6,                           // Kingfisher's perfect-parry band
+      parryR:     R0 * 2.1,
+      // The "last possible moment" band. It MUST sit outside the bird's own hit
+      // radius (bird.r*0.95 + 4) or the round damages you before it can ever get
+      // inside, and the band becomes unreachable. At R0*1.75 the press window is
+      // ~64ms on a standard round — hard, but a real timing read.
+      parryInner: R0 * 1.75,
       gravity: 1550 * S * (has.moon ? 0.55 : 1),
       flapV:   -480 * S * (has.moon ? 0.72 : 1) * (has.humming ? 0.88 : 1),
       speed:   Math.max(150, Math.min(W, 520) * 0.42),
@@ -547,6 +590,7 @@
     bullets.length = 0;
     lastIds = [];
     healReady = -10; stillUntil = -10;
+    dashUntil = -10; dashCooldownUntil = -10; dashPhase = 0;
     for (const u of UPGRADES) delete has[u.id];
     nextUpgradeScore = 5;
     shieldReady = false; shieldStreak = 0;
@@ -711,6 +755,8 @@
                    snake: pp.snake ? { ...pp.snake, nextShot: 0, charge: null } : undefined });
     }
     bullets.length = 0;
+    blasts.length = 0;
+    bolts.length = 0;
     history.length = 0;
     invulnUntil = gameTime + 1.2;
     rewindFlash = 0.6;
@@ -771,7 +817,8 @@
       const ang = Math.atan2(bird.y - hy, bird.x - hx);
       const v = p.bulletV * (st.bv || 1);
       bullets.push({ x: hx, y: hy, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v,
-                     friendly: false, pipe, breed: st.id, cost: 1, fast: st.bv > 1 });
+                     friendly: false, pipe, breed: st.id, cost: 1, fast: st.bv > 1,
+                     fuse: st.fuse, blast: st.blast, blastLife: st.blastLife });
     }
     sfx.shoot();
     return true;
@@ -836,6 +883,20 @@
     }
     popup('Phoenix!');
     sfx.powerup();
+  }
+
+  function dash() {
+    if (!dashReady() || state !== PLAYING) return;
+    dashCooldownUntil = gameTime + DASH_CD;
+    dashUntil = gameTime + DASH_TIME;
+    dashFrom = bird.x;
+    // i-frames cover the lunge AND the ease back, so you can never be dropped
+    // inside a pipe by your own dash
+    invulnUntil = Math.max(invulnUntil, gameTime + DASH_TIME + 0.30);
+    sfx.swing();
+  }
+  function dashReady() {
+    return score >= DASH_SCORE && gameTime >= dashCooldownUntil;
   }
 
   function parry() {
@@ -971,6 +1032,18 @@
 
     if (bird.y - bird.r < 0) { bird.y = bird.r; bird.vy = 0; }
 
+    // dash: a short forward lunge that eases back to the home lane
+    const homeX = W * 0.28;
+    if (gameTime < dashUntil) {
+      dashPhase = 1 - (dashUntil - gameTime) / DASH_TIME;
+      bird.x = dashFrom + DASH_DIST * Math.sin(dashPhase * Math.PI * 0.5);
+    } else if (bird.x > homeX + 0.5) {
+      bird.x += (homeX - bird.x) * Math.min(1, dt * 6);
+      dashPhase = 0;
+    } else {
+      bird.x = homeX;
+    }
+
     // spawn / recycle pipes
     if (pipes.length === 0 || pipes[pipes.length - 1].x < W - p.spacing) {
       const margin = (p.gap / 2 + skyH * 0.08) / skyH;
@@ -1071,6 +1144,20 @@
         if (b.friendly) continue;
         const d = Math.hypot(b.x - bird.x, b.y - bird.y);
         if (d < p.parryR) {
+          // Stormcutter: a parry inside the tightest band throws lightning at the
+          // shooter instead of returning the round, and heals a heart.
+          if (shopOwned.stormcutter && d < p.parryInner && b.pipe &&
+              b.pipe.snake && b.pipe.snake.alive && pipes.includes(b.pipe)) {
+            const sp = snakePos(b.pipe, p, skyH);
+            bolts.push({ x1: bird.x, y1: bird.y, x2: sp.x, y2: sp.y, t: 0 });
+            killSnake(b.pipe, sp, null);
+            if (hp < maxHp) { hp++; popup('+1 HP'); }
+            b.dead = true;
+            parried++;
+            sfx.parry();
+            sfx.powerup();
+            continue;
+          }
           b.perfect = !!shopOwned.kingfisher && d < p.parryInner;
           b.friendly = true;
           // Send it back the way it came immediately. The homing branch below
@@ -1136,6 +1223,14 @@
       }
       b.x += b.vx * dt;
       b.y += b.vy * dt;
+      // proximity fuse: detonates just inside parry reach, so cutting it early is
+      // the counter and letting it close is what sets the blast off
+      if (!b.friendly && b.fuse && Math.hypot(b.x - bird.x, b.y - bird.y) < b.fuse) {
+        blasts.push({ x: b.x, y: b.y, r: b.blast, t: 0, life: b.blastLife, hit: false });
+        sfx.smash();
+        bullets.splice(i, 1);
+        continue;
+      }
       if (!b.friendly && state === PLAYING &&
           Math.hypot(b.x - bird.x, b.y - bird.y) < bird.r * 0.95 + 4) {
         bullets.splice(i, 1);
@@ -1149,6 +1244,27 @@
         continue;
       }
       if (b.x < -60 || b.x > W + 60 || b.y < -60 || b.y > H + 60) bullets.splice(i, 1);
+    }
+
+    for (let i = bullets.length - 1; i >= 0; i--) if (bullets[i].dead) bullets.splice(i, 1);
+    for (let i = bolts.length - 1; i >= 0; i--) { bolts[i].t += dt; if (bolts[i].t > 0.22) bolts.splice(i, 1); }
+
+    // blasts: area damage, once each, then they fade out
+    for (let i = blasts.length - 1; i >= 0; i--) {
+      const bl = blasts[i];
+      bl.t += dt;
+      if (!bl.hit && state === PLAYING &&
+          Math.hypot(bl.x - bird.x, bl.y - bird.y) < bl.r + bird.r * 0.6) {
+        bl.hit = true;                       // one hit per blast, never a 1s damage tick
+        if (gameTime >= bulletImmuneUntil && gameTime >= invulnUntil) {
+          hp--;
+          bulletImmuneUntil = gameTime + 0.6;
+          hurtFlash = 0.35;
+          sfx.hurt();
+          if (hp <= 0) { die(); return; }
+        }
+      }
+      if (bl.t >= bl.life) blasts.splice(i, 1);
     }
 
     // floating feedback text
@@ -1285,23 +1401,45 @@
       ctx.restore();
     }
 
-    // parry reach — turns the cooldown into a visible resource and is what makes
-    // the growing-disc and wall breeds readable at all
-    if (snakePhase && state === PLAYING) {
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = gameTime < parryWindowUntil ? 'rgba(255,255,255,0.85)'
-                      : gameTime < parryCooldownUntil ? 'rgba(120,130,150,0.28)'
-                      : 'rgba(200,215,255,0.42)';
-      ctx.beginPath();
-      ctx.arc(bird.x, bird.y, p.parryR, 0, Math.PI * 2);
-      ctx.stroke();
-      if (shopOwned.kingfisher && bullets.some(b => !b.friendly &&
-          Math.hypot(b.x - bird.x, b.y - bird.y) < p.parryR)) {
-        ctx.strokeStyle = 'rgba(140,220,255,0.55)';
+    // Stormcutter lightning — a jagged bolt from the bird to the snake it cut
+    for (const bo of bolts) {
+      const a = 1 - bo.t / 0.22;
+      const dx = bo.x2 - bo.x1, dy = bo.y2 - bo.y1;
+      const n = 7;
+      for (let pass = 0; pass < 2; pass++) {
+        ctx.strokeStyle = pass === 0 ? 'rgba(150,220,255,' + (a * 0.55).toFixed(2) + ')'
+                                     : 'rgba(255,255,255,' + a.toFixed(2) + ')';
+        ctx.lineWidth = pass === 0 ? 9 : 3;
         ctx.beginPath();
-        ctx.arc(bird.x, bird.y, p.parryInner, 0, Math.PI * 2);
+        ctx.moveTo(bo.x1, bo.y1);
+        for (let j = 1; j < n; j++) {
+          const f = j / n;
+          const off = (zhash(j * 7 + Math.floor(bo.t * 60)) - 0.5) * 26 * (1 - Math.abs(f - 0.5) * 2);
+          ctx.lineTo(bo.x1 + dx * f - dy / Math.hypot(dx, dy) * off,
+                     bo.y1 + dy * f + dx / Math.hypot(dx, dy) * off);
+        }
+        ctx.lineTo(bo.x2, bo.y2);
         ctx.stroke();
       }
+    }
+
+    // blasts — a big red bloom that expands then fades over its life
+    for (const bl of blasts) {
+      const f = Math.min(1, bl.t / bl.life);
+      const r = bl.r * (0.45 + 0.55 * Math.min(1, f * 3));
+      const g = ctx.createRadialGradient(bl.x, bl.y, r * 0.15, bl.x, bl.y, r);
+      g.addColorStop(0, 'rgba(255,240,200,' + (0.95 * (1 - f)).toFixed(3) + ')');
+      g.addColorStop(0.45, 'rgba(255,90,30,' + (0.8 * (1 - f)).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(200,20,10,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(bl.x, bl.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,120,60,' + (0.7 * (1 - f)).toFixed(3) + ')';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(bl.x, bl.y, r, 0, Math.PI * 2);
+      ctx.stroke();
     }
 
     // XLR8 charge tell: a ring closing in on the muzzle, so the press is a read
@@ -1405,6 +1543,20 @@
     if (rewindFlash > 0) {
       ctx.fillStyle = 'rgba(255,255,255,' + rewindFlash.toFixed(3) + ')';
       ctx.fillRect(0, 0, W, H);
+    }
+
+    // dash button: visible from DASH_SCORE, with the cooldown sweeping away as it recharges
+    if (!settingsOpen) {
+      const want = state === PLAYING && score >= DASH_SCORE;
+      dashBtn.classList.toggle('hidden', !want);
+      if (want) {
+        const left = Math.max(0, dashCooldownUntil - gameTime);
+        const frac = Math.min(1, left / DASH_CD);
+        dashBtn.classList.toggle('cooling', frac > 0);
+        dashBtn.style.background = frac > 0
+          ? 'conic-gradient(rgba(60,130,210,0.9) ' + ((1 - frac) * 360).toFixed(0) + 'deg, rgba(60,130,210,0.3) 0deg)'
+          : 'rgba(60,130,210,0.9)';
+      }
     }
 
     // score
@@ -1965,6 +2117,7 @@
   const checkpointNote = document.getElementById('checkpointNote');
   const goldTotalEl = document.getElementById('goldTotalEl');
   const parryBtn = document.getElementById('parryBtn');
+  const dashBtn = document.getElementById('dashBtn');
   const resetPosBtn = document.getElementById('resetPosBtn');
   const settingsDoneBtn = document.getElementById('settingsDoneBtn');
   const devModeBtn = document.getElementById('devModeBtn');
@@ -1984,17 +2137,28 @@
 
   // parry button position (percent of viewport), persisted
   const POS_KEY = 'flappy-parry-pos';
+  const DASH_POS_KEY = 'flappy-dash-pos';
   const DEFAULT_POS = { x: 85, y: 82 };
+  const DEFAULT_DASH_POS = { x: 15, y: 82 };
   let parryPos = { ...DEFAULT_POS };
+  let dashPos = { ...DEFAULT_DASH_POS };
   try {
     const sv = JSON.parse(localStorage.getItem(POS_KEY));
     if (sv && isFinite(sv.x) && isFinite(sv.y)) parryPos = sv;
+  } catch (e) {}
+  try {
+    const sv = JSON.parse(localStorage.getItem(DASH_POS_KEY));
+    if (sv && isFinite(sv.x) && isFinite(sv.y)) dashPos = sv;
   } catch (e) {}
   function applyParryPos() {
     parryPos.x = Math.min(92, Math.max(8, parryPos.x));
     parryPos.y = Math.min(92, Math.max(8, parryPos.y));
     parryBtn.style.left = parryPos.x + '%';
     parryBtn.style.top = parryPos.y + '%';
+    dashPos.x = Math.min(92, Math.max(8, dashPos.x));
+    dashPos.y = Math.min(92, Math.max(8, dashPos.y));
+    dashBtn.style.left = dashPos.x + '%';
+    dashBtn.style.top = dashPos.y + '%';
   }
   applyParryPos();
 
@@ -2007,24 +2171,30 @@
   }
   updateDesktopLabel();
 
-  let settingsOpen = false, draggingParry = false;
+  let settingsOpen = false, draggingParry = false, draggingDash = false;
   function openSettings() {
     settingsOpen = true;
     settingsScreen.classList.remove('hidden');
     startScreen.classList.add('hidden');
     gameOverScreen.classList.add('hidden');
     parryBtn.classList.remove('hidden');
+    dashBtn.classList.remove('hidden');
   }
   function closeSettings() {
     settingsOpen = false;
     draggingParry = false;
+    draggingDash = false;
     settingsScreen.classList.add('hidden');
     parryBtn.classList.add('hidden');
+    dashBtn.classList.add('hidden');
     if (state === START) startScreen.classList.remove('hidden');
     if (state === GAMEOVER) {
       gameOverScreen.classList.remove('hidden');
     }
-    try { localStorage.setItem(POS_KEY, JSON.stringify(parryPos)); } catch (e) {}
+    try {
+      localStorage.setItem(POS_KEY, JSON.stringify(parryPos));
+      localStorage.setItem(DASH_POS_KEY, JSON.stringify(dashPos));
+    } catch (e) {}
   }
 
   // ---------- shop ----------
@@ -2143,7 +2313,8 @@
     const t = e.target;
     if (settingsOpen) {
       if (t === parryBtn) draggingParry = true;
-      else if (t === resetPosBtn) { parryPos = { ...DEFAULT_POS }; applyParryPos(); }
+      else if (t === dashBtn) draggingDash = true;
+      else if (t === resetPosBtn) { parryPos = { ...DEFAULT_POS }; dashPos = { ...DEFAULT_DASH_POS }; applyParryPos(); }
       else if (t === settingsDoneBtn) closeSettings();
       else if (t === devModeBtn) devPanel.classList.toggle('hidden');
       else if (t === dev45Btn)  { ensureAudio(); devStart(45); }
@@ -2164,7 +2335,9 @@
       return;
     }
     if (t === shopBtn || t === shopBtn2) { openShop(); return; }
+    if (t === dashBtn) { ensureAudio(); dash(); return; }
     if (t === parryBtn) { ensureAudio(); parry(); return; }
+    if (e.button === 2) { ensureAudio(); dash(); return; }   // desktop: right click dashes
     if (state === CHOICE) {
       const card = t.closest && t.closest('.upg-card');
       if (card) { ensureAudio(); chooseUpgrade(card.dataset.id); }
@@ -2185,15 +2358,23 @@
     if (draggingParry) {
       parryPos = { x: (e.clientX / W) * 100, y: (e.clientY / H) * 100 };
       applyParryPos();
+    } else if (draggingDash) {
+      dashPos = { x: (e.clientX / W) * 100, y: (e.clientY / H) * 100 };
+      applyParryPos();
     }
   });
-  document.addEventListener('pointerup', () => { holding = false; draggingParry = false; });
-  document.addEventListener('pointercancel', () => { holding = false; draggingParry = false; });
+  document.addEventListener('pointerup', () => { holding = false; draggingParry = false; draggingDash = false; });
+  document.addEventListener('pointercancel', () => { holding = false; draggingParry = false; draggingDash = false; });
 
   window.addEventListener('keydown', (e) => {
     if (state === CHOICE && (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3')) {
       const card = choiceCards.children[Number(e.code.slice(-1)) - 1];
       if (card) { ensureAudio(); chooseUpgrade(card.dataset.id); }
+      return;
+    }
+    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+      ensureAudio();
+      dash();
       return;
     }
     if (e.code === 'KeyP' || e.code === 'Enter') {

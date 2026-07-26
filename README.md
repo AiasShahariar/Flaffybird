@@ -20,11 +20,19 @@ A roguelike Flappy Bird — one self-contained HTML file, no dependencies, no bu
   **Twin Fangs** own 60-69 — both heads fire at once, 2.5x as often. **XLR8
   Snakes** own 70-79 — blue, they charge up and then fire a round at 5x speed,
   so parry on the flash rather than reacting to the shot — and they keep firing
-  at your back after you overtake them. From 80 all three mix,
+  at your back after you overtake them. **Bombardiers** own 80-89 — their round
+  flies at 3x and detonates near you into a blast four times its size, so cut it
+  early. From 90 all four mix,
   and every pipe carries a snake. A parried shot always flies back the way
   it came, and kills whatever it reaches.
 
-Gold carries over between runs. The **Shop** is empty for now.
+- **80+** — you get a **DASH**: a short forward lunge on a one-second cooldown.
+  Right click on desktop, or the DASH button on a phone.
+
+Gold carries over between runs and buys the **Stormcutter** ($500) — parry at
+the very last possible moment and the blade throws lightning instead of
+returning the shot, killing the snake and healing you a heart. The window is
+about a twentieth of a second, so it is a genuine flex.
 **Settings** lets you drag the PARRY button anywhere and switch on desktop
 controls (space to flap, left click to parry).
 
