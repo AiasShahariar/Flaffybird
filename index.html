@@ -355,8 +355,7 @@
     shieldBreak() { tone(1100, 250, 0.22, 'triangle', 0.22, 0); },
     smash()       { tone(180, 60, 0.20, 'sawtooth', 0.25, 0); tone(900, 200, 0.12, 'square', 0.15, 0); },
     rewind()      { tone(250, 1500, 0.35, 'sine', 0.20, 0); },
-    perch()       { tone(600, 500, 0.06, 'triangle', 0.10, 0); },
-    recharge()    { tone(700, 1050, 0.09, 'sine', 0.12, 0); },
+      recharge()    { tone(700, 1050, 0.09, 'sine', 0.12, 0); },
     tick()        { tone(1000, 1400, 0.06, 'sine', 0.10, 0); },
     swing()       { tone(500, 180, 0.10, 'triangle', 0.12, 0); },
     parry()       { tone(1800, 900, 0.08, 'square', 0.20, 0); tone(2600, 2600, 0.05, 'sine', 0.15, 0.02); },
@@ -374,11 +373,9 @@
     { id: 'shield',  icon: '\u{1F6E1}️', name: 'Guardian Feather', desc: 'A spirit shield absorbs one crash. Restore it by threading 3 gaps in a row dead-centre.' },
     { id: 'peck',    icon: '⛏️',    name: 'Woodpecker Beak',  desc: 'Smash straight through the first pipe you hit, then recharges after 10 pipes.' },
     { id: 'glide',   icon: '\u{1FA82}',       name: 'Glider Wings',     desc: 'Hold your finger on the screen to glide gently instead of falling.' },
-    { id: 'focus',   icon: '\u{1F3AF}',       name: 'Falcon Focus',     desc: 'Time slows down while you thread through a pipe.' },
     { id: 'rewind',  icon: '⏪',          name: 'Rewind Totem',     desc: 'Once per run, a fatal crash rewinds time two seconds instead.' },
     { id: 'humming', icon: '\u{1FAB6}',       name: 'Hummingbird Form', desc: 'Shrink into a tiny, nimble bird with quick little flaps.' },
     { id: 'moon',    icon: '\u{1F319}',       name: 'Moon Feathers',    desc: 'Moon gravity — you fall like a feather and flap softly.' },
-    { id: 'perch',   icon: '\u{1F43E}',       name: 'Perch Claws',      desc: 'Land on top of a pipe to perch safely. Tap to take off.' },
     { id: 'kite',    icon: '\u{1FA81}',       name: 'Kite Tail',        desc: 'You hang in the air for a moment at the top of every flap.' },
   ];
   const has = {};
@@ -497,7 +494,7 @@
   let best = 0;
   try { best = parseInt(localStorage.getItem('flappy-best'), 10) || 0; } catch (e) {}
 
-  const bird = { x: 0, y: 0, prevY: 0, vy: 0, r: 0, angle: 0, wing: 0 };
+  const bird = { x: 0, y: 0, vy: 0, r: 0, angle: 0, wing: 0 };
   const pipes = [];   // { x, gapC (fraction of playable height), scored, snake? }
   let groundOffset = 0;
   let bgScroll = 0;                            // parallax accumulator for zone decor.
@@ -509,9 +506,7 @@
   let gameTime = 0;        // accumulated play time (pauses stop it)
   let invulnUntil = 0;     // gameTime until which pipe hits are ignored
   let holding = false;     // finger / key currently held (Glider Wings)
-  let perched = false;     // sitting on a pipe cap (Perch Claws)
   let hangTimer = 0, hangArmed = false;  // Kite Tail apex hang
-  let focusActive = false; // Falcon Focus slow-mo engaged
   let rewindFlash = 0;
   const history = [];      // ~2s ring buffer of snapshots for Rewind Totem
   const particles = [];    // wood splinters / snake bits
@@ -566,12 +561,11 @@
     hurtFlash = 0; bannerUntil = 0; bannerTitle = ''; bannerSub = '';
     breedsSeen = 0;
     gameTime = 0; invulnUntil = 0;
-    holding = false; perched = false;
+    holding = false;
     hangTimer = 0; hangArmed = false;
-    focusActive = false; rewindFlash = 0;
+    rewindFlash = 0;
     bird.x = W * 0.28;
     bird.y = (H - p.groundH) * 0.45;
-    bird.prevY = bird.y;
     bird.vy = 0;
     bird.angle = 0;
     bird.r = p.birdR;
@@ -611,7 +605,6 @@
 
   function flap() {
     const p = params();
-    perched = false;
     bird.vy = p.flapV;
     bird.wing = 1;
     hangArmed = !!has.kite;
@@ -622,7 +615,6 @@
   function die() {
     state = GAMEOVER;
     diedAt = performance.now();
-    perched = false;
     holding = false;
     sfx.hit();
     if (score > best) {
@@ -671,7 +663,6 @@
     if (id === 'rewind') { rewindReady = true; }
     choiceScreen.classList.add('hidden');
     state = PLAYING;
-    perched = false;
     bird.vy = params().flapV * 0.9;   // gentle boost so resuming is safe
     invulnUntil = gameTime + 1.2;
     sfx.powerup();
@@ -709,7 +700,6 @@
     const snap = history[0];
     rewindReady = false;
     bird.y = snap.y;
-    bird.prevY = snap.y;
     bird.vy = Math.min(snap.vy, 0);
     score = snap.score;
     groundOffset = snap.groundOffset;
@@ -722,7 +712,6 @@
     }
     bullets.length = 0;
     history.length = 0;
-    perched = false;
     invulnUntil = gameTime + 1.2;
     rewindFlash = 0.6;
     syncZoneInstant();   // score just moved backwards; snap under the white rewind flash
@@ -871,7 +860,7 @@
     zoneFade = 1;
   }
 
-  // Always called with RAW dt (never the Falcon Focus dt): a background fade is
+  // Always called with RAW dt, never a slowed dt: a background fade is
   // presentational and should take ZONE_FADE real seconds regardless of slow-mo.
   function updateZone(dt) {
     const want = zoneForScore(score);
@@ -954,23 +943,14 @@
       }
     }
 
-    // Falcon Focus: slow the whole world while threading a pipe
-    // `!perched` matters: perching overlaps a pipe permanently, which pinned Focus
-    // on forever in a collision-immune state.
-    focusActive = !!has.focus && !perched && pipes.some(pp =>
-      bird.x + bird.r > pp.x - 40 && bird.x - bird.r < pp.x + p.pipeW + 10);
-    // Slows never multiply — take the strongest, so Still Water + Focus is still 0.55x
-    if (focusActive || gameTime < stillUntil) dt *= 0.55;
+    if (gameTime < stillUntil) dt *= 0.55;   // Still Water (shop) slow-mo
 
     groundOffset = (groundOffset + p.speed * dt) % 48;
     bgScroll += p.speed * 0.5 * dt;   // world motion, so it slows with the ground
 
     // bird physics
-    bird.prevY = bird.y;
     bird.r = p.birdR;
-    if (perched) {
-      bird.vy = 0;
-    } else if (hangTimer > 0) {       // Kite Tail: hang at the apex
+    if (hangTimer > 0) {              // Kite Tail: hang at the apex
       hangTimer -= dt;
       bird.vy = 0;
     } else {
@@ -986,7 +966,7 @@
     }
     bird.y += bird.vy * dt;
     bird.wing = Math.max(0, bird.wing - dt * 6);
-    const target = perched ? 0 : (bird.vy < 0 ? -0.45 : Math.min(bird.vy / (H * 0.9), 1.35));
+    const target = bird.vy < 0 ? -0.45 : Math.min(bird.vy / (H * 0.9), 1.35);
     bird.angle += (target - bird.angle) * Math.min(1, dt * 12);
 
     if (bird.y - bird.r < 0) { bird.y = bird.r; bird.vy = 0; }
@@ -1017,18 +997,6 @@
     }
     for (const pipe of pipes) pipe.x -= p.speed * dt;
     while (pipes.length && pipes[0].x + p.pipeW < -10) pipes.shift();
-
-    // Perch Claws: stick to the supporting pipe cap while it scrolls
-    if (perched) {
-      const sup = pipes.find(pp =>
-        bird.x + bird.r * 0.5 > pp.x && bird.x - bird.r * 0.5 < pp.x + p.pipeW);
-      if (sup) {
-        bird.y = sup.gapC * skyH + p.gap / 2 - bird.r;
-        bird.vy = 0;
-      } else {
-        perched = false;    // slid off the edge — back to falling
-      }
-    }
 
     // snakes fire at the bird
     if (snakePhase) {
@@ -1217,16 +1185,7 @@
         const hitTop = bird.y - br < gapTop;
         const hitBot = bird.y + br > gapBot;
         if (!hitTop && !hitBot) continue;
-        if (invuln || perched) continue;
-        // Perch Claws: falling onto a bottom-pipe cap is a landing, not a crash
-        if (hitBot && !hitTop && has.perch && bird.vy > 0 && bird.prevY + br <= gapBot + 14) {
-          perched = true;
-          bird.y = gapBot - bird.r;
-          bird.vy = 0;
-          bird.angle = 0;
-          sfx.perch();
-          continue;
-        }
+        if (invuln) continue;
         if (has.peck && peckReady) {
           peckReady = false; peckCharge = 0;
           splinter(pipe, p, skyH);
@@ -1434,16 +1393,6 @@
         ctx.fillText(q.text, q.x, q.y);
       }
       ctx.restore();
-    }
-
-    // Falcon Focus vignette
-    if (focusActive && state === PLAYING) {
-      const v = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35,
-                                         W / 2, H / 2, Math.max(W, H) * 0.75);
-      v.addColorStop(0, 'rgba(30,40,90,0)');
-      v.addColorStop(1, 'rgba(30,40,90,0.3)');
-      ctx.fillStyle = v;
-      ctx.fillRect(0, 0, W, H);
     }
 
     // hurt flash
@@ -1871,7 +1820,7 @@
 
   function drawBird() {
     const r = bird.r;
-    const gliding = has.glide && holding && bird.vy > 0 && state === PLAYING && !perched;
+    const gliding = has.glide && holding && bird.vy > 0 && state === PLAYING;
     ctx.save();
     ctx.translate(bird.x, bird.y);
     ctx.rotate(bird.angle);
@@ -2157,7 +2106,7 @@
   // Dev Mode: jump straight to any score with the full upgrade kit
   function devStart(n) {
     closeSettings();
-    startGame(true);                 // resets, grants all 9 upgrades, sets score 45
+    startGame(true);                 // resets, grants all upgrades, sets score 45
     if (n > CHECKPOINT_SCORE) {
       score = n;
       nextUpgradeScore = n + 5;      // pool is fully owned; keep the chooser quiet

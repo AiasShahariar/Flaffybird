@@ -7,7 +7,7 @@ A roguelike Flappy Bird — one self-contained HTML file, no dependencies, no bu
 ## How it plays
 
 - **0–45** — tap/click/space to flap. Every 5 points the game pauses and deals
-  3 upgrade cards from a pool of 9. The score blinks red when a choice is one
+  3 upgrade cards from a pool of 7. The score blinks red when a choice is one
   pipe away.
 - **45** — checkpoint. Once you've reached it, Start and Restart resume here
   with every upgrade collected. **New Run** starts a fresh climb.
@@ -33,11 +33,9 @@ controls (space to flap, left click to parry).
 - 🛡️ **Guardian Feather** — absorbs one crash; restore it by threading 3 gaps dead-centre
 - ⛏️ **Woodpecker Beak** — smash through a pipe, recharges after 10
 - 🪂 **Glider Wings** — hold to glide instead of falling
-- 🎯 **Falcon Focus** — time slows while threading a pipe
 - ⏪ **Rewind Totem** — one fatal crash rewinds 2 seconds
 - 🪶 **Hummingbird Form** — tiny, nimble bird with quick flaps
 - 🌙 **Moon Feathers** — low gravity, feather-fall
-- 🐾 **Perch Claws** — land on pipe caps and perch
 - 🪁 **Kite Tail** — hang in the air at each flap's apex
 
 ## Development

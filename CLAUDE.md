@@ -13,11 +13,11 @@ automatically about a minute later.
 Three progression phases, in order:
 
 1. **Fledgling phase (0–45)** — plain Flappy Bird plus a roguelike upgrade
-   chooser every 5 points. Pool of 9 `UPGRADES`; each choice deals 3 cards.
-   By 45 the pool is exhausted, so no chooser fires after that. The score
+   chooser every 5 points. Pool of 7 `UPGRADES`; each choice deals 3 cards.
+   By 35 the pool is exhausted, so no chooser fires after that. The score
    counter blinks red when one point away from a choice.
 2. **Checkpoint (45)** — reaching 45 once sets a persistent flag. Later runs
-   resume at 45 with all 9 upgrades via `applyCheckpoint()`; Start/Restart
+   resume at 45 with all 7 upgrades via `applyCheckpoint()`; Start/Restart
    relabel themselves, and a **New Run** button forces a fresh 0-start.
 3. **Snake ambush (50+)** — `SNAKE_SCORE`. Bird gains HP (`maxHp`) and a
    katana. Armed snakes cling to pipe sides and fire. The PARRY button (or left
@@ -110,7 +110,7 @@ exactly, so nothing below 46 changed.
   ground hatch; `bgScroll` is unbounded because decor identity is
   `floor(offset/step)` and wrapping would make stalks morph in place. The zone
   cross-fade advances on **raw** dt (presentational, one call site), while
-  `bgScroll` advances on the Falcon-Focus-slowed dt at both `groundOffset` sites
+  `bgScroll` advances on the (possibly slowed) dt at both `groundOffset` sites
   so parallax stays locked to the ground.
 - **Dev Mode** (Settings → Dev Mode) has 45 / 70 / 100 / 130 buttons calling
   `devStart(n)` — full upgrade kit, snake phase armed, full HP, zone synced,
