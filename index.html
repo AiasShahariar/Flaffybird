@@ -773,9 +773,14 @@
   // ---------- snake firing ----------
   // One case for now; a new breed is a `shot` value plus a case here.
   function fireSnake(pipe, s, st, sp, mx, my, p, skyH) {
-    const ang = Math.atan2(bird.y - my, bird.x - mx);
-    bullets.push({ x: mx, y: my, vx: Math.cos(ang) * p.bulletV, vy: Math.sin(ang) * p.bulletV,
-                   friendly: false, pipe, breed: st.id, cost: 1 });
+    // every head fires together, so a two-headed breed puts up two rounds at once
+    for (let h = 0; h < st.heads; h++) {
+      const off = headOffset(st, h);
+      const hx = sp.x - 39 + off.x, hy = sp.y - 4 + off.y;
+      const ang = Math.atan2(bird.y - hy, bird.x - hx);
+      bullets.push({ x: hx, y: hy, vx: Math.cos(ang) * p.bulletV, vy: Math.sin(ang) * p.bulletV,
+                     friendly: false, pipe, breed: st.id, cost: 1 });
+    }
     sfx.shoot();
     return true;
   }
@@ -1068,11 +1073,10 @@
         if (!s.nextShot) { s.nextShot = gameTime + (0.35 + Math.random() * 0.45) / Math.max(1, st.rate); continue; }
         if (landing) continue;
         if (gameTime < s.nextShot) continue;
-        const cost = st.cost == null ? 1 : st.cost;
+        const cost = st.heads;                   // reserve a slot per head, they all fire
         if (threat + cost > CAP) continue;
         if (fireSnake(pipe, s, st, sp, mx, my, p, skyH) === false) continue;
         threat += cost;
-        s.head = (s.head + 1) % st.heads;
         s.nextShot = gameTime + (1.6 + Math.random()) / (st.rate * pressure);
       }
     }
@@ -1086,6 +1090,14 @@
         if (d < p.parryR) {
           b.perfect = !!shopOwned.kingfisher && d < p.parryInner;
           b.friendly = true;
+          // Send it back the way it came immediately. The homing branch below
+          // overrides this while the shooter is alive; if the shooter is already
+          // dead (or its pipe has scrolled out) this is what stops the round
+          // becoming a blue dot drifting off in the direction it was travelling.
+          const sp0 = Math.hypot(b.vx, b.vy) || p.bulletV;
+          const back = p.bulletV * (b.perfect ? 2.2 : 1.55);
+          b.vx = -b.vx / sp0 * back;
+          b.vy = -b.vy / sp0 * back;
           parried++;
           sfx.parry();
         }
@@ -1124,6 +1136,20 @@
         }
         b.vx = (sp.x - b.x) / d * fv;
         b.vy = (sp.y - b.y) / d * fv;
+      } else if (b.friendly) {
+        // Shooter already dead or scrolled away: the round keeps flying back the
+        // way it came, and still cuts down anything it passes through.
+        for (const pp of pipes) {
+          if (!pp.snake || !pp.snake.alive) continue;
+          const sp = snakePos(pp, p, skyH);
+          if (Math.hypot(sp.x - b.x, sp.y - b.y) < 20) {
+            killSnake(pp, sp, b);
+            bullets.splice(i, 1);
+            b.gone = true;
+            break;
+          }
+        }
+        if (b.gone) continue;
       }
       b.x += b.vx * dt;
       b.y += b.vy * dt;

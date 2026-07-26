@@ -27,9 +27,12 @@ Three progression phases, in order:
    **`SNAKE_TYPES` is the extension point** — currently two rows, vipers at 50
    and two-headed Twin Fangs at 60 firing 2.5x as often. A row is `{ id, from,
    name, tip, heads, rate, shot, body, mark }`; `shot` picks a case in
-   `fireSnake()`, `rate` divides the shot interval, `heads` drives both the fork
-   in `drawSnake` and the alternating muzzle in the firing block (both read
-   `headOffset()`, which is why they stay in sync).
+   `fireSnake()`, `rate` divides the shot interval, and `heads` drives three
+   things at once — the fork in `drawSnake`, the muzzle positions, and the
+   volley size, since **every head fires together**. All of them read
+   `headOffset()`, which is why the shots come from the heads you can see.
+   `heads` is also the breed's threat cost, so a two-round volley reserves two
+   of the four slots.
 
    Ten further breeds with distinct projectiles (predictive lane, ceiling
    skimmer, splitter, burst, parked blocker, homer, wall, growing disc,
@@ -50,6 +53,12 @@ Three progression phases, in order:
      to **mixed pools only** — in a solo stretch `meanRate` *is* that breed's
      rate, so dividing by it cancels `rate` algebraically and flattens every
      breed to one cadence.
+   - **A parried round always goes back the way it came.** The parry reverses
+     its velocity immediately; the homing branch only overrides that while the
+     shooter is alive. Without the reversal a round whose shooter had already
+     died just kept drifting forward as a harmless blue dot — common with
+     two-round volleys, where the first kill orphans the second round. An
+     orphaned round still cuts down any snake it passes.
    - **The `landing` gate is the real ceiling.** It blocks any new shot while
      one is within 0.5s of arriving, so no two arrivals can land inside one
      0.45s parry cooldown. With a snake on every pipe this serialises arrivals
