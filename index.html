@@ -970,8 +970,13 @@
     updateZone(dt);
 
     if (state !== PLAYING) {
-      groundOffset = (groundOffset + p.speed * dt) % 48;
-      bgScroll += p.speed * 0.5 * dt;
+      // The world halts on death. Pipes already stop (they only move in the
+      // PLAYING section), so leaving these running slid the floor and the bamboo
+      // along underneath frozen pipes. The start screen keeps scrolling.
+      if (state !== GAMEOVER) {
+        groundOffset = (groundOffset + p.speed * dt) % 48;
+        bgScroll += p.speed * 0.5 * dt;
+      }
       if (state === START) {
         // idle hover on the start screen
         bird.x = W * 0.28;

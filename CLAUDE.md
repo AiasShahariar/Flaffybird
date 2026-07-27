@@ -139,6 +139,10 @@ exactly, so nothing below 46 changed.
   zone is derived from `score` every frame, so it needs no rewind snapshot;
   `syncZoneInstant()` snaps it in `resetGame()`, `applyCheckpoint()` (which sets
   score *after* `resetGame`), and `doRewind()`.
+- **The world halts on GAMEOVER.** Pipes already stop there (they only move in
+  the PLAYING section), so `groundOffset`/`bgScroll` are gated off too — left
+  running, the floor and bamboo slid along under frozen pipes. The START screen
+  keeps scrolling; it is the attract state.
 - **Two scroll accumulators, deliberately.** `groundOffset` is `% 48` for the
   ground hatch; `bgScroll` is unbounded because decor identity is
   `floor(offset/step)` and wrapping would make stalks morph in place. The zone
